@@ -109,21 +109,21 @@
         v.autoplay = v.loop = v.muted = v.playsInline = true;
         document.getElementById('video-wrap').appendChild(v);
 
+        const macBtn = document.getElementById('dl-mac');
+        const winBtn = document.getElementById('dl-win');
+        const fallback = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
+        macBtn.href = winBtn.href = fallback;
+
         fetch('https://api.github.com/repos/nurislamaibekuly/yourLyrics/releases/latest')
-            .then(r => r.json())
+            .then(r => r.ok ? r.json() : Promise.reject())
             .then(rel => {
                 const assets = rel.assets || [];
-                const mac = assets.find(a => /mac|dmg|darwin/i.test(a.name));
-                const win = assets.find(a => /win|exe|setup/i.test(a.name));
-                if (mac) document.getElementById('dl-mac').href = mac.browser_download_url;
-                if (win) document.getElementById('dl-win').href = win.browser_download_url;
-                if (!mac) document.getElementById('dl-mac').href = rel.html_url;
-                if (!win) document.getElementById('dl-win').href = rel.html_url;
+                const mac = assets.find(a => /macos|dmg|darwin/i.test(a.name));
+                const win = assets.find(a => /windows|win|\.exe/i.test(a.name));
+                if (mac) macBtn.href = mac.browser_download_url;
+                if (win) winBtn.href = win.browser_download_url;
             })
-            .catch(() => {
-                document.getElementById('dl-mac').href = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
-                document.getElementById('dl-win').href = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
-            });
+            .catch(() => {});
     </script>
 </body>
 </html>
