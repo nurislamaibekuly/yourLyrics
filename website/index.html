@@ -73,40 +73,120 @@
         }
         .cta .primary { background: #fff; color: #0a2540; }
         .cta .primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,255,255,0.12); }
+        .cta .primary:active { transform: translateY(0) scale(0.98); }
         .cta .secondary { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
         .cta .secondary:hover { background: rgba(255,255,255,0.11); }
+        .cta .secondary:active { transform: scale(0.98); }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: none; }
+        }
+        .fade-in {
+            opacity: 0;
+            animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        nav { animation-delay: 0.1s; }
+        #scribble-box { animation-delay: 0.25s; }
+        .tagline { animation-delay: 0.45s; }
+        .video-wrap { animation-delay: 0.6s; }
+        .cta { animation-delay: 0.75s; }
+
+        @keyframes glow-pulse {
+            0%, 100% { filter: drop-shadow(0 0 24px rgba(140, 190, 255, 0.25)); }
+            50% { filter: drop-shadow(0 0 44px rgba(140, 190, 255, 0.45)); }
+        }
+        #scribble-box.done { animation: glow-pulse 4s ease-in-out infinite; }
+
+        .video-wrap video {
+            opacity: 0;
+            transform: scale(1.02);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .video-wrap video.ready {
+            opacity: 1;
+            transform: none;
+        }
+        .video-wrap:hover video.ready { transform: scale(1.01); }
+
+        footer {
+            margin-top: auto;
+            padding: 3rem 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            text-align: center;
+        }
+        footer .links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        footer a {
+            color: rgba(255, 255, 255, 0.4);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s;
+        }
+        footer a:hover { color: rgba(255, 255, 255, 0.8); }
+        footer p {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.25);
+        }
+        .fade-in-scroll {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .fade-in-scroll.visible {
+            opacity: 1;
+            transform: none;
+        }
     </style>
 </head>
 <body>
     <div class="bg"></div>
-    <nav>
+    <nav class="fade-in">
         <img src="icon.png" alt="">
         <span>yourLyrics</span>
     </nav>
     <section class="hero">
-        <div id="scribble-box"></div>
-        <p class="tagline">A beautiful Apple Music-inspired lyrics application</p>
-        <div class="video-wrap" id="video-wrap"></div>
-        <div class="cta">
+        <div id="scribble-box" class="fade-in"></div>
+        <p class="tagline fade-in">A beautiful Apple Music-inspired lyrics application</p>
+        <div class="video-wrap fade-in" id="video-wrap"></div>
+        <div class="cta fade-in">
             <a href="#" class="primary" id="dl-mac">Download for macOS</a>
             <a href="#" class="secondary" id="dl-win">Windows</a>
         </div>
     </section>
+    <footer class="fade-in-scroll">
+        <div class="links">
+            <a href="https://github.com/nurislamaibekuly/yourLyrics" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://github.com/nurislamaibekuly/yourLyrics/releases" target="_blank" rel="noopener">Releases</a>
+        </div>
+        <p>MIT License · Built with Electron</p>
+    </footer>
     <script src="scribble.js"></script>
     <script>
-        new Scribble.ScribbleLetter({
+        const scribble = new Scribble.ScribbleLetter({
             container: document.getElementById('scribble-box'),
             text: 'yourLyrics',
             color: '#b8d9f8',
             strokeWidth: 2.8,
             timing: Scribble.ScribbleTiming.tween(5, Scribble.Curve.easeInOut),
             loops: false
-        }).play();
+        });
+        scribble.play();
+        setTimeout(() => {
+            const box = document.getElementById('scribble-box');
+            box.classList.remove('fade-in');
+            box.classList.add('done');
+        }, 5400);
 
         const vids = ['videos/cropped.mp4','videos/cropped2.mp4','videos/cropped3.mp4','videos/cropped4.mp4','videos/cropped5.mp4'];
         const v = document.createElement('video');
         v.src = vids[Math.floor(Math.random() * vids.length)];
         v.autoplay = v.loop = v.muted = v.playsInline = true;
+        v.addEventListener('canplay', () => v.classList.add('ready'), { once: true });
         document.getElementById('video-wrap').appendChild(v);
 
         const macBtn = document.getElementById('dl-mac');
@@ -124,6 +204,15 @@
                 if (win) winBtn.href = win.browser_download_url;
             })
             .catch(() => {});
+
+        new IntersectionObserver((entries, obs) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    e.target.classList.add('visible');
+                    obs.unobserve(e.target);
+                }
+            });
+        }).observe(document.querySelector('footer'));
     </script>
 </body>
 </html>
