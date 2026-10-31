@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yourLyrics</title>
+    <link rel="icon" href="icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            background: #000;
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        .bg {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -10%, #003c6e, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 50% 110%, #001e3c, transparent 50%);
+            z-index: -1;
+        }
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 1.5rem;
+        }
+        nav img { width: 28px; height: 28px; border-radius: 7px; }
+        nav span { font-size: 0.95rem; font-weight: 600; }
+        .hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 2rem 6rem;
+            text-align: center;
+        }
+        #scribble-box {
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 30px rgba(140, 190, 255, 0.3));
+        }
+        #scribble-box svg { width: 460px; height: 120px; }
+        .tagline {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.45);
+            margin-bottom: 3.5rem;
+            max-width: 380px;
+            line-height: 1.6;
+        }
+        .video-wrap {
+            width: 100%;
+            max-width: 880px;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.06),
+                0 4px 24px rgba(0, 0, 0, 0.4),
+                0 24px 80px rgba(0, 0, 0, 0.6);
+        }
+        .video-wrap video { width: 100%; height: auto; display: block; }
+        .cta { margin-top: 3rem; display: flex; gap: 10px; }
+        .cta a {
+            padding: 11px 24px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+        .cta .primary { background: #fff; color: #0a2540; }
+        .cta .primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(255,255,255,0.12); }
+        .cta .secondary { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+        .cta .secondary:hover { background: rgba(255,255,255,0.11); }
+    </style>
+</head>
+<body>
+    <div class="bg"></div>
+    <nav>
+        <img src="icon.png" alt="">
+        <span>yourLyrics</span>
+    </nav>
+    <section class="hero">
+        <div id="scribble-box"></div>
+        <p class="tagline">A beautiful Apple Music-inspired lyrics application</p>
+        <div class="video-wrap" id="video-wrap"></div>
+        <div class="cta">
+            <a href="#" class="primary" id="dl-mac">Download for macOS</a>
+            <a href="#" class="secondary" id="dl-win">Windows</a>
+        </div>
+    </section>
+    <script src="scribble.js"></script>
+    <script>
+        new Scribble.ScribbleLetter({
+            container: document.getElementById('scribble-box'),
+            text: 'yourLyrics',
+            color: '#b8d9f8',
+            strokeWidth: 2.8,
+            timing: Scribble.ScribbleTiming.tween(5, Scribble.Curve.easeInOut),
+            loops: false
+        }).play();
+
+        const vids = ['videos/cropped.mp4','videos/cropped2.mp4','videos/cropped3.mp4','videos/cropped4.mp4','videos/cropped5.mp4'];
+        const v = document.createElement('video');
+        v.src = vids[Math.floor(Math.random() * vids.length)];
+        v.autoplay = v.loop = v.muted = v.playsInline = true;
+        document.getElementById('video-wrap').appendChild(v);
+
+        fetch('https://api.github.com/repos/nurislamaibekuly/yourLyrics/releases/latest')
+            .then(r => r.json())
+            .then(rel => {
+                const assets = rel.assets || [];
+                const mac = assets.find(a => /mac|dmg|darwin/i.test(a.name));
+                const win = assets.find(a => /win|exe|setup/i.test(a.name));
+                if (mac) document.getElementById('dl-mac').href = mac.browser_download_url;
+                if (win) document.getElementById('dl-win').href = win.browser_download_url;
+                if (!mac) document.getElementById('dl-mac').href = rel.html_url;
+                if (!win) document.getElementById('dl-win').href = rel.html_url;
+            })
+            .catch(() => {
+                document.getElementById('dl-mac').href = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
+                document.getElementById('dl-win').href = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
+            });
+    </script>
+</body>
+</html>
