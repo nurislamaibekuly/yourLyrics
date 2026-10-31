@@ -6,5 +6,5 @@ Download
 
 Grab the latest release from the releases page
 
-[!WARNING]
-Windows and Linux builds are currently untested. Bugs and compatibility issues are expected
+> [!WARNING]
+> Windows and Linux builds are currently untested. Bugs and compatibility issues are expected
