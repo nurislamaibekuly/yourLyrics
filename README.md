@@ -1,10 +1,12 @@
-yourLyrics
+# yourLyrics
 
 A beautiful Apple Music-inspired lyrics application for macOS and Windows
 
-Download
+![Showcase](images/showcase.png)
 
-Grab the latest release from the releases page
+## Download
+
+Grab the latest release from the [releases page](https://github.com/nurislamaibekuly/yourLyrics/releases/latest)
 
 > [!WARNING]
-> Windows and Linux builds are currently untested. Bugs and compatibility issues are expected
+> Windows and Linux builds are untested and may not work as expected
