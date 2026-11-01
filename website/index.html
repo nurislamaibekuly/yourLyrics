@@ -156,6 +156,7 @@
         <div class="cta fade-in">
             <a href="#" class="primary" id="dl-mac">Download for macOS</a>
             <a href="#" class="secondary" id="dl-win">Windows</a>
+            <a href="#" class="secondary" id="dl-linux">Linux</a>
         </div>
     </section>
     <footer class="fade-in-scroll">
@@ -191,8 +192,9 @@
 
         const macBtn = document.getElementById('dl-mac');
         const winBtn = document.getElementById('dl-win');
+        const linuxBtn = document.getElementById('dl-linux');
         const fallback = 'https://github.com/nurislamaibekuly/yourLyrics/releases/latest';
-        macBtn.href = winBtn.href = fallback;
+        macBtn.href = winBtn.href = linuxBtn.href = fallback;
 
         fetch('https://api.github.com/repos/nurislamaibekuly/yourLyrics/releases/latest')
             .then(r => r.ok ? r.json() : Promise.reject())
@@ -200,8 +202,10 @@
                 const assets = rel.assets || [];
                 const mac = assets.find(a => /macos|dmg|darwin/i.test(a.name));
                 const win = assets.find(a => /windows|win|\.exe/i.test(a.name));
+                const linux = assets.find(a => /linux|\.appimage|\.deb|\.snap/i.test(a.name));
                 if (mac) macBtn.href = mac.browser_download_url;
                 if (win) winBtn.href = win.browser_download_url;
+                if (linux) linuxBtn.href = linux.browser_download_url;
             })
             .catch(() => {});
 
