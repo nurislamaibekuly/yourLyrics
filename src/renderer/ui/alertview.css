@@ -1,0 +1,190 @@
+/* alertview: iOS UIAlertController-style alert. MIT. */
+.alertview {
+  --alertview-bg: rgba(250, 250, 250, 0.82);
+  --alertview-ink: #000;
+  --alertview-ink-2: rgba(60, 60, 67, 0.6);
+  --alertview-tint: #007aff;
+  --alertview-separator: rgba(60, 60, 67, 0.29);
+  --alertview-highlight: rgba(0, 0, 0, 0.055);
+  position: fixed;
+  inset: 0;
+  z-index: 2147483100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden;
+  transition: visibility 0s linear 400ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  .alertview:not([data-theme]) {
+    --alertview-bg: rgba(44, 44, 46, 0.78);
+    --alertview-ink: #fff;
+    --alertview-ink-2: rgba(235, 235, 245, 0.6);
+    --alertview-tint: #0a84ff;
+    --alertview-separator: rgba(84, 84, 88, 0.65);
+    --alertview-highlight: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.alertview[data-theme="dark"] {
+  --alertview-bg: rgba(44, 44, 46, 0.78);
+  --alertview-ink: #fff;
+  --alertview-ink-2: rgba(235, 235, 245, 0.6);
+  --alertview-tint: #0a84ff;
+  --alertview-separator: rgba(84, 84, 88, 0.65);
+  --alertview-highlight: rgba(255, 255, 255, 0.06);
+}
+
+.alertview__backdrop {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  transition-duration: 400ms;
+}
+
+.alertview--open {
+  visibility: visible;
+  /* No visibility delay on open -- the base rule's 400ms delay is only for
+     the closing direction; without this override the alert stays hidden for
+     the whole enter transition and pops in already settled. */
+  transition: none;
+}
+
+.alertview--open .alertview__backdrop {
+  opacity: 0.4;
+}
+
+.alertview__card {
+  position: relative;
+  width: 270px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: var(--alertview-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  color: var(--alertview-ink);
+  opacity: 0;
+  transform: scale(1.185);
+  transition-property: transform, opacity;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  will-change: transform, opacity;
+}
+
+.alertview--open .alertview__card {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* iOS exits by fading out in place; the scale does not reverse. */
+.alertview--closing .alertview__card {
+  transform: scale(1);
+  opacity: 0;
+}
+
+.alertview--no-motion,
+.alertview--no-motion .alertview__card,
+.alertview--no-motion .alertview__backdrop {
+  transition: none;
+}
+
+.alertview--no-motion .alertview__card {
+  transform: none;
+}
+
+.alertview__text {
+  padding: 19px 16px 15px;
+  text-align: center;
+}
+
+.alertview__title {
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.4px;
+}
+
+.alertview__message {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 18px;
+  font: inherit;
+  color: var(--alertview-ink-2);
+}
+
+.alertview__input {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 7px 9px;
+  box-sizing: border-box;
+  border: 0.5px solid var(--alertview-separator);
+  border-radius: 8px;
+  background: rgba(118, 118, 128, 0.08);
+  color: var(--alertview-ink);
+  outline: none;
+}
+
+.alertview__input:focus {
+  border-color: var(--alertview-tint);
+}
+
+.alertview__row {
+  display: flex;
+  border-top: 0.5px solid var(--alertview-separator);
+}
+
+.alertview__action {
+  font: inherit;
+  font-weight: 500;
+}
+
+.alertview__row .alertview__action {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  cursor: default;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.alertview__row .alertview__action + .alertview__action {
+  border-left: 0.5px solid var(--alertview-separator);
+}
+
+.alertview__stack {
+  display: flex;
+  flex-direction: column;
+  border-top: 0.5px solid var(--alertview-separator);
+}
+
+.alertview__stack .alertview__action {
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+
+  cursor: default;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.alertview__stack .alertview__action + .alertview__action {
+  border-top: 0.5px solid var(--alertview-separator);
+}
+
+.alertview__action:active {
+  background: var(--alertview-highlight);
+}
+
+.alertview__action:focus-visible {
+  outline: 2px solid var(--alertview-tint);
+  outline-offset: -2px;
+}

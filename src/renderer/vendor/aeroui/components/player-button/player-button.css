@@ -1,0 +1,82 @@
+/* AeroUI player button (MIT). See ../../LICENSE and upstream player-button.css. */
+.aero-player {
+  --player-size: 68px;
+  --player-icon: 36px;
+  --player-label: var(--aero-fg, #fff);
+  --player-tint: transparent;
+  --player-pressed: var(--player-label);
+  --player-disabled: rgba(235, 235, 245, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--player-size);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--player-label);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Transform belongs to the JS spring, never a second CSS transition. */
+  transition: background-color 0.35s ease, color 0.3s ease;
+}
+
+.aero-player--circle {
+  background-color: var(--player-tint);
+  color: var(--player-pressed);
+  transition: background-color 0.06s ease-out, color 0.06s ease-out;
+}
+
+.aero-player-label,
+.aero-player-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aero-player .aero-player-label { color: inherit; }
+.aero-player-label > svg,
+.aero-player-label > img,
+.aero-player-symbol > svg,
+.aero-player-symbol > img {
+  width: var(--player-icon);
+  height: var(--player-icon);
+  display: block;
+}
+
+.aero-player:not(.aero-player--pressed):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35);
+}
+
+.aero-player:disabled {
+  color: var(--player-disabled);
+  background: transparent;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aero-player,
+  .aero-player-label,
+  .aero-player-symbol { transition: none; }
+}
+
+/* Both icons share one fixed box. Their springs never write the press layer's
+   transform, and hidden icons remain available for a smooth reversal. */
+.aero-player-symbol--toggle {
+  position: relative;
+  width: var(--player-icon);
+  height: var(--player-icon);
+}
+.aero-player-symbol--toggle > .aero-player-icon {
+  position: absolute;
+  inset: 0;
+  transform: scale(0);
+  transform-origin: center;
+}
+.aero-player-symbol--toggle > .aero-player-icon.is-current { transform: scale(1); }

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' file: blob: https://*.itunes.apple.com; connect-src 'self' https://*.itunes.apple.com"
+    />
+    <title>yourLyrics</title>
+    <link rel="stylesheet" href="vendor/aeroui/components/player-button/player-button.css" />
+    <link rel="stylesheet" href="vendor/aeroui/components/skip-label/skip-label.css" />
+    <link rel="stylesheet" href="styles/styles.css" />
+    <link rel="stylesheet" href="styles/ios.css" />
+    <link rel="stylesheet" href="ui/menuview.css">
+    <link rel="stylesheet" href="ui/sheetview.css">
+    <link rel="stylesheet" href="ui/alertview.css">
+    <link rel="stylesheet" href="ui/updateview.css">
+  </head>
+  <body class="is-paused is-startup-pending" hidden>
+    <div id="app">
+    <canvas class="backdrop" aria-hidden="true"></canvas>
+    <div class="drag-region">
+      <!-- Windows, Linux, and macOS: the titlebar draws custom macOS-style
+           traffic lights with a window pin button. Hovering the top-left area
+           reveals them smoothly; moving the pointer away hides them. -->
+      <div class="window-controls" hidden>
+        <button class="window-control window-control--close" type="button"
+          data-window-action="close" aria-label="Close" title="Close"></button>
+        <button class="window-control window-control--minimize" type="button"
+          data-window-action="minimize" aria-label="Minimize" title="Minimize"></button>
+        <button class="window-control window-control--maximize" type="button"
+          data-window-action="maximize" aria-label="Maximize" title="Maximize"></button>
+        <button class="window-control window-control--pin" type="button"
+          data-window-action="pin" aria-label="Pin window" title="Pin window (Always on Top)"></button>
+      </div>
+    </div>
+    <main class="stage">
+      <div class="ios-grabber" aria-hidden="true"></div>
+      <button class="ios-artwork-toggle" type="button" aria-label="Show artwork" title="Show artwork"></button>
+      <div class="player-column">
+        <div class="album-group">
+        <img
+          class="artwork"
+          src="../../assets/fallback.png"
+          alt="Album artwork"
+          draggable="false"
+        />
+        <video
+          class="artwork artwork-video"
+          crossorigin="anonymous"
+          muted
+          loop
+          playsinline
+          preload="auto"
+          aria-hidden="true"
+          tabindex="-1"
+        ></video>
+        <div class="title-row">
+          <span class="now-playing-indicator" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+          <h1 class="title">No song playing</h1>
+        </div>
+        <p class="artist"></p>
+        </div>
+        <button class="metadata-menu" type="button" aria-label="More options" title="More options">
+          <img src="../../assets/icons/dots.svg" alt="" aria-hidden="true" draggable="false" />
+        </button>
+        <div
+          class="progress"
+          role="slider"
+          aria-label="Playback position"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="0"
+          aria-valuetext="0:00 of 0:00"
+          data-duration="0"
+          data-position="0"
+        >
+          <div class="progress-fill"></div>
+        </div>
+        <span class="time time-elapsed">0:00</span>
+        <span class="time time-remaining">-0:00</span>
+        <div class="playback-controls" role="group" aria-label="Playback controls" aria-busy="false">
+          <button class="aero-player" type="button" data-playback="previous" aria-label="Previous track" title="Previous track" disabled>
+            <span class="aero-skip" data-direction="backward" aria-hidden="true"></span>
+          </button>
+          <button class="aero-player" type="button" data-playback="toggle" aria-label="Play" title="Play" disabled>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6.8 4 17.2Q4 21 7.31 19.14L18.26 12.98Q20 12 18.26 11.02L7.31 4.86Q4 3 4 6.8Z" /></svg>
+          </button>
+          <button class="aero-player" type="button" data-playback="next" aria-label="Next track" title="Next track" disabled>
+            <span class="aero-skip" data-direction="forward" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="volume-control" aria-hidden="true">
+          <svg class="volume-icon volume-icon--min" width="32" height="40" viewBox="0 0 32 40" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14.9042 27.1802C14.4202 27.1802 14.0473 26.9897 13.595 26.5612L10.3815 23.5461C10.3339 23.5065 10.2863 23.4906 10.2228 23.4906H8.01703C6.70778 23.4906 5.99365 22.7527 5.99365 21.38V18.4442C5.99365 17.0715 6.70778 16.3257 8.01703 16.3257H10.2307C10.2863 16.3257 10.3418 16.3019 10.3815 16.2622L13.595 13.2709C14.079 12.8107 14.4361 12.6282 14.8883 12.6282C15.6104 12.6282 16.142 13.1915 16.142 13.8977V25.9344C16.142 26.6406 15.6104 27.1802 14.9042 27.1802Z" class="speaker-bounce-1" />
+          </svg>
+          <div class="volume-slider">
+            <div class="volume-slider-fill"></div>
+          </div>
+          <svg class="volume-icon volume-icon--max" width="43" height="40" viewBox="0 0 43 40" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24.0403 27.1802C23.5642 27.1802 23.1913 26.9897 22.739 26.5612L19.5176 23.5461C19.4779 23.5065 19.4224 23.4906 19.3668 23.4906H17.161C15.8518 23.4906 15.1377 22.7527 15.1377 21.38V18.4442C15.1377 17.0715 15.8518 16.3257 17.161 16.3257H19.3668C19.4303 16.3257 19.4779 16.3019 19.5255 16.2622L22.739 13.2709C23.223 12.8107 23.5721 12.6282 24.0324 12.6282C24.7544 12.6282 25.286 13.1915 25.286 13.8977V25.9344C25.286 26.6406 24.7544 27.1802 24.0403 27.1802Z" class="speaker-bounce-1" />
+            <path d="M28.0948 23.6653C27.6028 23.3559 27.4996 22.7687 27.8964 22.1101C28.2931 21.4991 28.5232 20.7136 28.5232 19.8964C28.5232 19.0712 28.301 18.2856 27.8964 17.6826C27.4917 17.032 27.6028 16.4369 28.0948 16.1274C28.547 15.8418 29.1104 15.9529 29.404 16.3576C30.0863 17.3097 30.491 18.5713 30.491 19.8964C30.491 21.2214 30.0863 22.4831 29.404 23.4273C29.1104 23.8399 28.547 23.943 28.0948 23.6653Z" class="speaker-bounce-2" />
+            <path d="M31.6733 25.8711C31.1576 25.5696 31.0942 24.9428 31.4432 24.3794C32.2526 23.1257 32.7207 21.5468 32.7207 19.8964C32.7207 18.2459 32.2605 16.6591 31.4432 15.4133C31.0942 14.8499 31.1576 14.2231 31.6733 13.9137C32.1415 13.6439 32.7128 13.755 33.0143 14.2152C34.0855 15.7783 34.6885 17.8016 34.6885 19.8964C34.6885 21.9911 34.0775 23.9985 33.0143 25.5775C32.7128 26.0377 32.1415 26.1488 31.6733 25.8711Z" class="speaker-bounce-3" />
+            <path d="M35.2362 28.1007C34.7363 27.7992 34.6569 27.1803 34.9981 26.6249C36.1883 24.7286 36.9104 22.4196 36.9104 19.9122C36.9104 17.397 36.1883 15.0881 34.9981 13.1917C34.6569 12.6362 34.7363 12.0174 35.2362 11.7159C35.7123 11.4302 36.3073 11.5651 36.6088 12.0571C38.0133 14.2866 38.8702 16.9765 38.8702 19.9122C38.8702 22.8401 38.0291 25.5379 36.6088 27.7675C36.3073 28.2515 35.7123 28.3864 35.2362 28.1007Z" class="speaker-bounce-4" />
+          </svg>
+        </div>
+      </div>
+      <section class="lyrics is-empty" aria-label="Lyrics">
+        <div class="lyrics-mask">
+          <div class="lyrics-track"></div>
+          <div class="lyrics-spinner aero-spinner aero-spinner--sm" aria-hidden="true">
+            <svg viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(0.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(45.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(90.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(135.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(180.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(225.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(270.0 540 540)" />
+              <rect x="487.50" y="176.00" width="105" height="230" rx="52.50" fill="currentColor" transform="rotate(315.0 540 540)" />
+            </svg>
+          </div>
+        </div>
+      </section>
+    </main>
+    <div class="file-drop" aria-hidden="true">
+      <span>Drop LRC, ELRC, QRC or TTML</span>
+    </div>
+    <div class="lyrics-notice" role="status" aria-live="polite"></div>
+    <button
+      class="lyrics-toggle"
+      type="button"
+      aria-pressed="true"
+      aria-label="Hide lyrics"
+      title="Hide lyrics"
+    >
+      <span class="lyrics-toggle-icon"></span>
+    </button>
+    </div>
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

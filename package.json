@@ -1,0 +1,149 @@
+{
+  "name": "yourlyrics",
+  "version": "0.4.0",
+  "description": "yourLyrics desktop app",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "node scripts/build-loudness.js && node scripts/build-windows-loudness.js && electron .",
+    "build:loudness": "node scripts/build-loudness.js",
+    "build:loudness:win": "node scripts/build-windows-loudness.js",
+    "test:metadata-marquee": "node tests/test-metadata-marquee.cjs",
+    "test:lyrics-layout": "node tests/test-lyrics-layout.cjs",
+    "test:lyrics-compositing": "node tests/test-lyrics-compositing.cjs",
+    "test:playback": "node --test tests/test-playback-commands.cjs tests/test-playback-clock.cjs && node --test tests/test-linux-media.cjs && node tests/test-playback-controls.cjs",
+    "test:player-animation": "node tests/test-player-animation.cjs && node tests/test-artwork-motion.cjs",
+    "test:animated-art": "node --test tests/test-animated-art.cjs tests/test-artwork-extension.cjs && node tests/test-artwork-blur.cjs",
+    "test:loudness": "node --test tests/test-loudness.cjs",
+    "test:developer-mode": "node --test tests/test-developer-mode.cjs && node tests/test-developer-tools.cjs",
+    "test:discord-activity": "node --test tests/test-discord-activity.cjs",
+    "test:style-preferences": "node --test tests/test-style-preferences.cjs",
+    "test:window-controls": "node --test tests/test-window-controls.cjs",
+    "test:solarium-menu": "node tests/test-solarium-menu.cjs",
+    "test:solarium": "node tests/test-solarium.cjs",
+    "test:solarium-optics": "node tests/test-solarium-optics.cjs",
+    "test:solarium-materials": "node --test tests/test-solarium-materials.cjs",
+    "test:ui-style": "node --test tests/test-ui-style.cjs",
+    "test:ios": "node --test tests/test-window-style.cjs tests/test-ios-metadata.cjs && node tests/test-ios-layout.cjs && node tests/test-ios-frost.cjs",
+    "test:tvos-controls": "node --test tests/test-tvos-controls.cjs",
+    "test:community-lyrics": "node --test tests/test-community-lyrics.cjs",
+    "test:lyrics-matching": "node --test tests/test-lyrics-matching.cjs",
+    "test:updates": "node tests/test-update-version.cjs",
+    "test:packaged": "node scripts/smoke-packaged.cjs",
+    "test:packaged-startup": "node --test tests/test-packaged-startup.cjs",
+    "dist": "npm run dist:mac",
+    "dist:mac": "node scripts/build-loudness.js --universal && electron-builder --mac --arm64 --publish never",
+    "dist:mac:x64": "node scripts/build-loudness.js --universal && electron-builder --mac --x64 --publish never",
+    "dist:win": "node scripts/build-windows-loudness.js && electron-builder --win --x64 --publish never",
+    "dist:linux": "electron-builder --linux --x64 --publish never"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "GPL-3.0-only",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2"
+  },
+  "build": {
+    "appId": "com.nurislamaibekuly.yourlyrics",
+    "productName": "yourLyrics",
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
+    "beforePack": "scripts/before-pack.js",
+    "afterPack": "scripts/after-pack.js",
+    "asar": true,
+    "publish": {
+      "provider": "github",
+      "owner": "nurislamaibekuly",
+      "repo": "yourLyrics"
+    },
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
+    "files": [
+      {
+        "from": "src",
+        "to": "src",
+        "filter": [
+          "**/*",
+          "!**/.DS_Store"
+        ]
+      },
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": [
+          "**/*",
+          "!**/.DS_Store",
+          "!Assets.car"
+        ]
+      },
+      "package.json",
+      "LICENSE"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "assets/icon.icns",
+      "artifactName": "${productName}-${version}-macos-${arch}.${ext}",
+      "target": [
+        "zip"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "notarize": false,
+      "extraResources": [
+        {
+          "from": "vendor/mediaremote-adapter",
+          "to": "vendor/mediaremote-adapter"
+        },
+        {
+          "from": "vendor/loudness-tap/build/loudness-tap",
+          "to": "vendor/loudness-tap/loudness-tap"
+        },
+        {
+          "from": "vendor/loudness-tap/build/loudness-tap.node",
+          "to": "vendor/loudness-tap/loudness-tap.node"
+        }
+      ],
+      "extendInfo": {
+        "NSAudioCaptureUsageDescription": "yourLyrics pulses its backdrop with the now-playing app's audio, using the raw output of that app.",
+        "CFBundleIconName": "icon"
+      }
+    },
+    "linux": {
+      "category": "AudioVideo",
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage"
+      ],
+      "artifactName": "${productName}-${version}-linux-x64.${ext}"
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "artifactName": "${productName}-${version}-windows-${arch}.${ext}",
+      "target": [
+        "nsis"
+      ],
+      "extraResources": [
+        {
+          "from": "vendor/windows-media",
+          "to": "vendor/windows-media"
+        },
+        {
+          "from": "vendor/windows-loudness/build/loudness-tap.exe",
+          "to": "vendor/windows-loudness/loudness-tap.exe"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11",
+    "hls.js": "^1.7.4"
+  }
+}

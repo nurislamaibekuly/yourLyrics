@@ -1,0 +1,116 @@
+{
+  "extraction": {
+    "rowBuilder": "0x1001ba12c",
+    "acceleration": "0x1001bd690..0x1001bd6ec",
+    "step": "0x1001da848..0x1001dad48",
+    "samples": "Extracted arm64 mask loop executed with two synthetic rows at 10 ms intervals, then a shared 250 ms acceleration."
+  },
+  "words": [
+    {
+      "time": 0,
+      "end": 3,
+      "text": "upper"
+    },
+    {
+      "time": 3,
+      "end": 3.4,
+      "text": "lower "
+    },
+    {
+      "time": 3.4,
+      "end": 4,
+      "text": "tail"
+    }
+  ],
+  "geometry": {
+    "prefix": [
+      0,
+      100,
+      200
+    ],
+    "widths": [
+      100,
+      100,
+      80
+    ],
+    "total": 280,
+    "fadeWidth": 30,
+    "runs": [
+      {
+        "start": 0,
+        "total": 100
+      },
+      {
+        "start": 100,
+        "total": 180
+      }
+    ],
+    "wordFragments": [
+      [
+        {
+          "runIndex": 0,
+          "offset": 0,
+          "width": 100
+        }
+      ],
+      [
+        {
+          "runIndex": 1,
+          "offset": 0,
+          "width": 100
+        }
+      ],
+      [
+        {
+          "runIndex": 1,
+          "offset": 100,
+          "width": 80
+        }
+      ]
+    ]
+  },
+  "samples": [
+    {
+      "time": 3.25,
+      "frontiers": [
+        108.333252,
+        71.874992
+      ]
+    },
+    {
+      "time": 3.3,
+      "frontiers": [
+        112.666603,
+        99.499992
+      ]
+    },
+    {
+      "time": 3.35,
+      "frontiers": [
+        116.999954,
+        127.124992
+      ]
+    },
+    {
+      "time": 3.4,
+      "frontiers": [
+        121.333298,
+        154.75
+      ]
+    },
+    {
+      "time": 3.45,
+      "frontiers": [
+        125.666649,
+        182.375
+      ]
+    },
+    {
+      "time": 3.5,
+      "frontiers": [
+        130,
+        210
+      ]
+    }
+  ]
+}

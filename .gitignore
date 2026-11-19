@@ -1,0 +1,10 @@
+node_modules/
+dist/
+out/
+build/
+models/
+.DS_Store
+*.log
+
+# JVM crash dumps
+hs_err_pid*.log

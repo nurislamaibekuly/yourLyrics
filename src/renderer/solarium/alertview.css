@@ -1,0 +1,207 @@
+.solarium-alertview {
+  --alertview-bg: rgba(246, 246, 248, 0.86);
+  --alertview-ink: #000;
+  --alertview-ink-2: rgba(60, 60, 67, 0.72);
+  --alertview-tint: #007aff;
+  --alertview-pill-bg: rgba(120, 120, 128, 0.16);
+  --alertview-pill-hover: rgba(120, 120, 128, 0.22);
+  --alertview-danger: #ff3b30;
+  --alertview-ring: rgba(255, 255, 255, 0.55);
+  transition: visibility 0s linear 480ms;
+}
+
+.solarium-alertview.alertview--open {
+  transition: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-alertview:not([data-theme]) {
+    --alertview-bg: rgba(34, 34, 36, 0.84);
+    --alertview-ink: #fff;
+    --alertview-ink-2: rgba(235, 235, 245, 0.72);
+    --alertview-tint: #0a84ff;
+    --alertview-pill-bg: rgba(120, 120, 128, 0.34);
+    --alertview-pill-hover: rgba(120, 120, 128, 0.42);
+    --alertview-danger: #ff453a;
+    --alertview-ring: rgba(255, 255, 255, 0.14);
+  }
+}
+
+.solarium-alertview[data-theme="dark"] {
+  --alertview-bg: rgba(34, 34, 36, 0.84);
+  --alertview-ink: #fff;
+  --alertview-ink-2: rgba(235, 235, 245, 0.72);
+  --alertview-tint: #0a84ff;
+  --alertview-pill-bg: rgba(120, 120, 128, 0.34);
+  --alertview-pill-hover: rgba(120, 120, 128, 0.42);
+  --alertview-danger: #ff453a;
+  --alertview-ring: rgba(255, 255, 255, 0.14);
+}
+
+.solarium-alertview .alertview__backdrop {
+  transition-duration: 480ms;
+}
+
+.solarium-alertview .alertview__card {
+  width: 300px;
+  max-width: calc(100vw - 36px);
+  border-radius: 34px;
+  padding: 0;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 0.5px var(--alertview-ring);
+  transition-duration: 480ms;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  overflow: hidden;
+}
+
+.solarium-alertview .alertview__card:has([data-solarium-fallback="true"]) {
+  background: var(--alertview-bg);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+}
+
+.solarium-alertview.is-settled .alertview__card {
+  transition-property: opacity;
+}
+
+.solarium-alertview.alertview--closing .alertview__card {
+  transform: scale(1);
+  opacity: 0;
+  transition-property: opacity;
+  transition-duration: 420ms;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.solarium-alertview__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.solarium-alertview__content {
+  position: relative;
+  z-index: 1;
+  padding: 20px 14px 14px;
+  box-sizing: border-box;
+}
+
+.solarium-alertview .alertview__text {
+  padding: 4px 10px 0;
+  text-align: left;
+}
+
+.solarium-alertview .alertview__title {
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.02em;
+  color: var(--alertview-ink);
+}
+
+.solarium-alertview .alertview__message {
+  margin-top: 8px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+  color: var(--alertview-ink-2);
+}
+
+.solarium-alertview .alertview__input {
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--alertview-pill-bg);
+  font: inherit;
+  font-size: 15px;
+  color: var(--alertview-ink);
+}
+
+.solarium-alertview .alertview__input:focus {
+  box-shadow: inset 0 0 0 1.5px var(--alertview-tint);
+}
+
+.solarium-alertview .alertview__row,
+.solarium-alertview .alertview__stack {
+  margin-top: 19px;
+  border-top: 0;
+  gap: 10px;
+}
+
+.solarium-alertview .alertview__action {
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--alertview-pill-bg);
+  color: var(--alertview-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.solarium-alertview .alertview__row .alertview__action + .alertview__action,
+.solarium-alertview .alertview__stack .alertview__action + .alertview__action {
+  border-left: 0;
+  border-top: 0;
+}
+
+.solarium-alertview .alertview__action[data-style="default"]:not([data-prominent="true"]) {
+  color: var(--alertview-tint);
+}
+
+.solarium-alertview .alertview__action[data-style="destructive"]:not([data-prominent="true"]) {
+  color: var(--alertview-danger);
+}
+
+.solarium-alertview .alertview__action[data-style="default"][data-prominent="true"] {
+  background: var(--alertview-tint);
+  color: #fff;
+  font-weight: 600;
+}
+
+.solarium-alertview .alertview__action[data-style="destructive"][data-prominent="true"] {
+  background: var(--alertview-danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.solarium-alertview .alertview__action:hover {
+  filter: brightness(1.06);
+}
+
+.solarium-alertview .alertview__action:active {
+  background: var(--alertview-pill-hover);
+  filter: brightness(0.94);
+}
+
+.solarium-alertview .alertview__action[data-prominent="true"]:active {
+  background: var(--alertview-tint);
+}
+
+.solarium-alertview .alertview__action[data-style="destructive"][data-prominent="true"]:active {
+  background: var(--alertview-danger);
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-alertview:not([data-theme]) .alertview__card {
+    box-shadow:
+      0 24px 60px rgba(0, 0, 0, 0.45),
+      inset 0 0 0 0.5px var(--alertview-ring);
+  }
+}
+
+.solarium-alertview[data-theme="dark"] .alertview__card {
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 0.5px var(--alertview-ring);
+}

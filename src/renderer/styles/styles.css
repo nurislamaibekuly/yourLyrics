@@ -1,0 +1,2370 @@
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../../../assets/fonts/SF-Pro-Display-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../../../assets/fonts/SF-Pro-Display-Medium.otf") format("opentype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../../../assets/fonts/SF-Pro-Display-Bold.otf") format("opentype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("../../../assets/fonts/SF-Pro-Display-Heavy.otf") format("opentype");
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+}
+
+/* SF Arabic is the variable face macOS pairs with SF Pro for Arabic text: one
+   file carries the whole wght axis (1..1000) and its own optical sizes, so the
+   same face serves the lyric weight and the lighter player labels. It ships no
+   Latin glyphs, which is why every stack that names it keeps SF Pro Display
+   behind it for the Latin words inside a mixed line. Bundled from macOS
+   because Windows and Linux have no SF Arabic installed.
+   SF-Arabic-Rounded.ttf sits beside it for a future style that wants the
+   rounded cut; nothing references it yet. */
+@font-face {
+  font-family: "SF Arabic";
+  src: url("../../../assets/fonts/SF-Arabic.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 1 1000;
+  font-display: block;
+}
+
+/* Register the per-frame karaoke fill variables as non-inheriting lengths so
+   updating `--fill`, `--char-fill` or `--background-fill` on a word/glyph
+   invalidates only that element's own mask style rather than walking its
+   subtree in WebKit. */
+@property --fill {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --char-fill {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --glyph-fill {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --background-fill {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+:root {
+  /* Native widgets (the sheet's selects, scrollbars) follow the appearance
+     setting, which main applies through nativeTheme.themeSource. */
+  color-scheme: light dark;
+
+  --art-size: 42vh;
+  --art-half: 21vh;
+  --art-left: calc(25vw - var(--art-half));
+  --art-right: calc(25vw + var(--art-half));
+  --art-top: 16.955vh;
+  --art-radius: 0.861vh;
+
+  --title-size: 2.0863vh;
+  --artist-size: 2.0721vh;
+  --time-size: 1.1496vh;
+
+  --title-baseline: 65.57vh;
+  --artist-baseline: 67.79vh;
+  --time-baseline: 72.04vh;
+
+  --progress-top: 69.574vh;
+  --progress-height: 0.677vh;
+  --progress: 0%;
+
+  /* The lyrics switch: one clock drives the lyrics column's scale/opacity
+     hand-off and the player column's slide to centre. */
+  --lyrics-toggle-duration: 500ms;
+  --lyrics-disable-duration: 200ms;
+  --lyrics-toggle-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Coming back to the lyrics column waits this long before it scales in, so
+     the player column leads the hand-off. Hiding the column is never delayed. */
+  --lyrics-toggle-delay: 100ms;
+  --lyrics-toggle-size: max(24px, 2.8vh);
+
+  /* macOS hidden titlebar: the drag strip sits above the content, and the
+     lyrics column starts below it instead of running underneath. */
+  --titlebar-height: 38px;
+
+  /* The window shape is drawn here instead of by the OS so the corners can be
+     rounder than the native mask. BrowserWindow is transparent; the base layer
+     and #app clip below paint this radius. */
+  --window-radius: 22px;
+
+  /* Specs +512: lineFinishProgressAnimationDuration = 0.25s — how long a line
+     takes to finish its progress/opacity hand-off. */
+  --line-finish-duration: 250ms;
+
+  /* The family the settings pick applies to the app and to Latin lyrics;
+     renderer.js rewrites it, and an Arabic lyric row puts SF Arabic in front
+     of it so Arabic and Latin in one line stay in their own faces. */
+  --app-font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+
+  /* Apple Music lyric defaults. `lineSpacing` is the distance between
+     lyric rows; it is not the CSS line-height inside a row. */
+  /* Preserve automatic window-height sizing, proportional backing vocals,
+     and the previous line-height ratio instead of fixed pixel typography. */
+  --lyrics-font-base: 5.83vh;
+  --lyrics-font-vw: 4.364vw;
+  --lyrics-font-size: min(var(--lyrics-font-base), var(--lyrics-font-vw));
+  --lyrics-text-transform: none;
+  --lyrics-background-font-size: 0.5417em;
+  --lyrics-line-height: 1.207;
+  --lyrics-width-coefficient: 0.85;
+  --lyrics-color: #fff;
+  --lyrics-fill-bright: var(--lyrics-color);
+  /* Apple Music lyrics_lift_amount: scale = 0.85 + 0.45 * amount,
+     amount 0..1 -> 0.85..1.3 (default 1 -> 1.3). */
+  --lyrics-lift-amount: 1;
+  --lyrics-lift: calc(0.85 + 0.45 * var(--lyrics-lift-amount));
+  --bright-mask-alpha: 1;
+  --dark-mask-alpha: 0.38;
+  /* Keep the lyric foreground neutral and bright, then lower the animated
+     mesh behind it for contrast without recoloring individual glyphs. */
+  --lyrics-scrim-brightness: 1;
+  --lyrics-scrim-saturation: 1;
+  /* Specs pairs 34pt text with 25pt/15pt spacing (0.735em / 0.44em). Keep
+     that ratio so spacing grows with the window instead of staying 25px
+     while the text scales, with the Specs values as the floor. */
+  --lyrics-line-spacing: calc(max(25px, calc(var(--lyrics-font-size) * 0.735)) * var(--lyrics-spacing-scale, 1));
+  --lyrics-background-top-spacing: max(15px, calc(var(--lyrics-font-size) * 0.44));
+
+  /* Immersive artwork mode (iPhone Duo style): large square artwork with soft edge fades.
+     --bleed-fade is a registered number (see @property below) that each artwork
+     layer animates 0 -> 1, so the mask fades in and out in step with the
+     geometry instead of popping. Timing and curve are the original ones. */
+  --bleed-size: min(54vw, 76vh);
+  --bleed-duration: 650ms;
+  --bleed-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* The mask is drawn this much larger than the artwork on every side so the
+     resting-state drop shadow is not clipped by it. Stops below are placed
+     inside the artwork's own box. */
+  --bleed-pad: calc(var(--art-size) * 0.2);
+}
+
+/* Not inherited: each artwork layer animates its own copy, so the per-frame
+   style work stays on those two elements instead of the whole page. */
+@property --bleed-fade {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@property --bleed-fade-x {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+/* Register both filter inputs so the fade into the lyric scrim interpolates
+   numerically instead of snapping. */
+@property --lyrics-scrim-brightness {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --lyrics-scrim-saturation {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+@property --word-dark-alpha {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  /* The transparent BrowserWindow would otherwise paint the document canvas
+     over the empty corner area. */
+  background: transparent;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  color: #fff;
+  /* SF Arabic follows SF Pro Display so Arabic in titles, credits and the
+     sheet falls back to the same face the lyrics use. */
+  font-family: "SF Pro Display", "SF Arabic", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+/* Dark base under the app. It fills the transparent window behind the scaled
+   page while a sheet is presented, and stays clipped to the same radius. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--window-radius);
+  background: #000;
+  pointer-events: none;
+}
+
+/* A maximized or fullscreen window is flush with the screen. Keeping the
+   radius there would leave transparent notches in the four corners. */
+body.is-window-flush {
+  --window-radius: 0px;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  /* The backdrop's colour grading happens inside amlbg, so only the lyric
+     scrim remains here. The scale hides the blur's edge falloff: a CSS blur
+     samples transparent pixels past the element, which would vignette the
+     viewport corners. Overscanning pushes those edges off-screen. */
+  filter:
+    brightness(var(--lyrics-scrim-brightness))
+    saturate(var(--lyrics-scrim-saturation));
+  transform: scale(1.05);
+  transition:
+    --lyrics-scrim-brightness 450ms ease-out,
+    --lyrics-scrim-saturation 450ms ease-out;
+}
+
+body.has-lyric-scrim {
+  --lyrics-scrim-brightness: 0.9;
+  --lyrics-scrim-saturation: 1.15;
+}
+
+.stage {
+  position: relative;
+  /* Keep the mesh in the lyric player's blending backdrop. A z-index here
+     isolates the entire stage from its sibling canvas. */
+  width: 100%;
+  height: 100%;
+}
+
+/* Everything the left half shows, grouped so it can move as one. It is a plain
+   absolute box over the stage: the children keep the exact geometry they had
+   as direct `.stage` children, and only the group's transform changes. */
+.player-column {
+  position: absolute;
+  inset: 0;
+  transition: transform var(--lyrics-toggle-duration) var(--lyrics-toggle-ease);
+}
+
+.album-group { display: contents; }
+.title-row { display: contents; }
+.now-playing-indicator { display: none; }
+
+/* The column is centred on 25vw and the window centre is 50vw, so a shift of
+   a quarter of the stage width (the wrapper is the full stage) lands it dead
+   centre once the lyrics column is gone. */
+body.is-lyrics-hidden .player-column {
+  transform: translateX(25%);
+}
+
+.drag-region {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--titlebar-height);
+  z-index: 20;
+  -webkit-app-region: drag;
+}
+
+/* Custom titlebar. Windows, Linux and macOS: the app draws macOS-style traffic
+   lights alongside a window pin toggle. Hovering the top-left area reveals
+   the controls smoothly; moving the pointer away fades them out. */
+.window-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Top padding places the 12px buttons at y=19 (matching macOS native traffic lights) */
+  padding: 19px 18px 18px 19px;
+  -webkit-app-region: no-drag;
+  z-index: 20;
+}
+
+.window-controls[hidden] {
+  display: none;
+}
+
+/* Fullscreen hides the titlebar controls. */
+body.is-window-fullscreen .window-controls {
+  display: none;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: default;
+  -webkit-app-region: no-drag;
+  opacity: 0;
+  transform: scale(0.85);
+  pointer-events: none;
+  transition:
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.window-controls:hover .window-control,
+.window-controls:focus-within .window-control,
+.window-controls.is-hovered .window-control {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  transition-duration: 0.16s;
+}
+
+.window-control:active {
+  transform: scale(0.92);
+}
+
+.window-control--close {
+  background: #ff5f57;
+}
+
+.window-control--minimize {
+  background: #febc2e;
+}
+
+.window-control--maximize {
+  background: #28c840;
+}
+
+.window-control--pin {
+  background: rgba(255, 255, 255, 0.22);
+  transition:
+    background-color 0.18s ease,
+    opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.window-control--pin.is-active,
+body.is-window-pinned .window-control--pin {
+  background: #0a84ff;
+}
+
+/* Like macOS, reveal the symbols when hovering the traffic-light group. */
+.window-control::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  mask: var(--window-symbol) center / contain no-repeat;
+  -webkit-mask: var(--window-symbol) center / contain no-repeat;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.window-controls:hover .window-control::after,
+.window-controls.is-hovered .window-control::after,
+.window-control:focus-visible::after {
+  opacity: 1;
+}
+
+.window-control--pin.is-active::after,
+body.is-window-pinned .window-control--pin::after {
+  background: #ffffff;
+  opacity: 1;
+}
+
+.window-control--close { --window-symbol: url("../../../assets/icons/window-close.png"); }
+.window-control--minimize { --window-symbol: url("../../../assets/icons/window-minimize.png"); }
+.window-control--maximize { --window-symbol: url("../../../assets/icons/window-maximize.png"); }
+.is-window-maximized .window-control--maximize { --window-symbol: url("../../../assets/icons/window-restore.png"); }
+.window-control--pin { --window-symbol: url("../../../assets/icons/window-pin.png"); }
+
+.artwork {
+  position: absolute;
+  top: var(--art-top);
+  left: var(--art-left);
+  width: var(--art-size);
+  height: var(--art-size);
+  border-radius: var(--art-radius);
+  object-fit: cover;
+  /* The shadow grows from the actual scale, including the resume rebound.
+     Divide its geometry by scale because the cover's transform applies to the
+     shadow too. CSS blur radii are twice the Gaussian sigma used here. */
+  --artwork-progress: var(--artwork-playback-progress, var(--artwork-rest-progress, 1));
+  --artwork-scale: calc(var(--artwork-paused-scale, 0.73) + (1 - var(--artwork-paused-scale, 0.73)) * var(--artwork-progress));
+  --artwork-shadow-progress: max(0, calc((var(--artwork-scale) - 0.73) / 0.27));
+  --artwork-shadow-unit: calc(var(--art-radius) / 10 / var(--artwork-scale));
+  box-shadow: 0 calc((4 + 12 * var(--artwork-shadow-progress)) * var(--artwork-shadow-unit))
+    calc((16 + 48 * var(--artwork-shadow-progress)) * var(--artwork-shadow-unit))
+    rgb(0 0 0 / calc(0.15 + 0.3 * var(--artwork-shadow-progress)));
+  transform: scale(var(--artwork-scale));
+  transform-origin: center;
+  -webkit-user-drag: none;
+
+  /* Geometry transitions remain independent of the playback spring.
+     Translate keeps Immersive artwork glued left while lyrics are hidden. */
+  transition:
+    top var(--bleed-duration) var(--bleed-ease),
+    left var(--bleed-duration) var(--bleed-ease),
+    width var(--bleed-duration) var(--bleed-ease),
+    height var(--bleed-duration) var(--bleed-ease),
+    border-radius var(--bleed-duration) var(--bleed-ease),
+    translate var(--lyrics-toggle-duration) var(--lyrics-toggle-ease),
+    --bleed-fade var(--bleed-duration) var(--bleed-ease),
+    --bleed-fade-x var(--bleed-duration) var(--bleed-ease);
+}
+
+.is-paused {
+  --artwork-rest-progress: 0;
+}
+
+/* Motion artwork sits exactly over the static cover — same geometry, radius
+   and paused scale — and only fades in once its first frame is decoded. */
+.artwork-video {
+  pointer-events: none;
+  object-fit: cover;
+  opacity: 0;
+  background: transparent;
+  box-shadow: none;
+
+  transition:
+    opacity 320ms ease,
+    top var(--bleed-duration) var(--bleed-ease),
+    left var(--bleed-duration) var(--bleed-ease),
+    width var(--bleed-duration) var(--bleed-ease),
+    height var(--bleed-duration) var(--bleed-ease),
+    border-radius var(--bleed-duration) var(--bleed-ease),
+    translate var(--lyrics-toggle-duration) var(--lyrics-toggle-ease),
+    --bleed-fade var(--bleed-duration) var(--bleed-ease),
+    --bleed-fade-x var(--bleed-duration) var(--bleed-ease);
+}
+
+.artwork-video.is-visible {
+  opacity: 1;
+}
+
+/* Set by renderer.js once the motion cover is fully opaque: the static image is
+   then redundant, and hiding it leaves a single masked layer instead of two.
+   Opacity is deliberately not in .artwork's transition list, so this is instant. */
+.artwork.is-covered {
+  opacity: 0;
+}
+
+
+/* The mask is always attached and fully opaque at rest; only its stops animate
+   (via --bleed-fade), which is what lets Immersive artwork transition smoothly. */
+.artwork,
+.artwork-video {
+  --bleed-mask-x: linear-gradient(to right,
+      #000 0%,
+      #000 calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.5800),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.024)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.6250),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.095)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.6700),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.206)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.7150),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.345)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.7600),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.500)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.8050),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.655)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.8500),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.794)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.8950),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.905)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.9400),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 0.976)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.9750),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade-x) * 1)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 1.0000));
+
+  --bleed-mask-y: linear-gradient(to bottom,
+      #000 0%,
+      #000 calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.4600),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.024)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.5200),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.095)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.5800),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.206)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.6400),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.345)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.7000),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.500)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.7600),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.655)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.8200),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.794)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.8800),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.905)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.9400),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 0.976)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 0.9800),
+      rgba(0, 0, 0, calc(1 - var(--bleed-fade) * 1)) calc(var(--bleed-pad) + (100% - 2 * var(--bleed-pad)) * 1.0000));
+
+  -webkit-mask-image: var(--bleed-mask-x), var(--bleed-mask-y);
+  mask-image: var(--bleed-mask-x), var(--bleed-mask-y);
+  -webkit-mask-size: calc(100% + 2 * var(--bleed-pad)) calc(100% + 2 * var(--bleed-pad));
+  mask-size: calc(100% + 2 * var(--bleed-pad)) calc(100% + 2 * var(--bleed-pad));
+  -webkit-mask-position: calc(-1 * var(--bleed-pad)) calc(-1 * var(--bleed-pad));
+  mask-position: calc(-1 * var(--bleed-pad)) calc(-1 * var(--bleed-pad));
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  mask-clip: no-clip;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+/* ── Immersive artwork mode ────────────────────────────────────────────────────────
+   Full-column cover pinned to the top edge, fading softly into the lyrics
+   column and behind the lower player controls.
+   Enabled by the "Immersive artwork" toggle in Settings (disabled by default).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+body.is-bleed-artwork .artwork,
+body.is-bleed-artwork .artwork-video {
+  top: 0;
+  left: 0;
+  width: 54vw;
+  height: 78vh;
+  border-radius: 0;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  --bleed-fade: 1;
+  --bleed-fade-x: 1;
+  /* animated by the transition; drives the mask stops */
+}
+
+
+/* Ensure title, artist, clocks, progress and buttons stay crisp above the artwork. */
+body.is-bleed-artwork .title,
+body.is-bleed-artwork .artist,
+body.is-bleed-artwork .metadata-menu,
+body.is-bleed-artwork .progress,
+body.is-bleed-artwork .time,
+body.is-bleed-artwork .playback-controls {
+  z-index: 2;
+}
+
+/* In immersive mode, artwork maintains 1:1 scale without pause/resume bounce. */
+body.is-bleed-artwork .artwork,
+body.is-bleed-artwork .artwork-video,
+body.is-bleed-artwork.is-paused .artwork,
+body.is-bleed-artwork.is-paused .artwork-video {
+  transform: scale(1);
+}
+
+/* Hiding the lyrics slides .player-column right by 25% of the stage so the
+   controls land dead centre. Immersive artwork cancels that shift and expands
+   to the full window width with only the bottom fade. */
+body.is-bleed-artwork.is-lyrics-hidden .artwork,
+body.is-bleed-artwork.is-lyrics-hidden .artwork-video {
+  width: 100vw;
+  height: 78vh;
+  translate: -25vw 0;
+  --bleed-fade-x: 0;
+}
+
+.title,
+.artist {
+  position: absolute;
+  z-index: 16;
+  left: var(--art-left);
+  width: var(--art-size);
+  margin: 0;
+  padding: 1em 5.2vh 1em 0;
+  overflow: hidden;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  mix-blend-mode: plus-lighter
+}
+
+.title {
+  /* A soft shadow keeps the title readable over the artwork in Immersive
+     mode. The artist line is frosted glass (transparent text), so it gets none. */
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0);
+  transition: text-shadow var(--bleed-duration) var(--bleed-ease);
+  top: calc(var(--title-baseline) - 1.8554em);
+  font-size: var(--title-size);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 1);
+}
+
+.artist {
+  top: calc(var(--artist-baseline) - 1.8554em);
+  font-size: var(--artist-size);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.metadata-menu {
+  position: absolute;
+  top: calc((var(--title-baseline) + var(--artist-baseline)) / 2);
+  left: calc(var(--art-right) - 0.8vh);
+  z-index: 16;
+
+  display: grid;
+  width: 2.5vh;
+  height: 2.5vh;
+  padding: 0;
+  place-items: center;
+
+  border-radius: 100px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+
+  color: #fff;
+  cursor: default;
+  transform: translate(-70%, -75%);
+}
+
+.metadata-menu img {
+  display: block;
+  width: 1.7vh;
+  height: 1.7vh;
+  background: transparent;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.metadata-menu:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.metadata-menu:active img {
+  filter: brightness(0) invert(0.8);
+}
+
+.metadata-menu.is-solarium-glass,
+.metadata-menu.is-solarium-glass:active,
+body[data-ui-style="tvos"] .metadata-menu.is-solarium-glass,
+body[data-ui-style="tvos"] .metadata-menu.is-solarium-glass:active,
+body[data-ui-style="ios"] .metadata-menu.is-solarium-glass,
+body[data-ui-style="ios"] .metadata-menu.is-solarium-glass:active,
+body[data-ui-style="ios"].is-ipados-landscape .metadata-menu.is-solarium-glass,
+body[data-ui-style="ios"].is-ipados-landscape .metadata-menu.is-solarium-glass:active {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.metadata-menu.is-solarium-glass img {
+  position: relative;
+  z-index: 1;
+}
+
+/* Bottom-right lyrics switch, same frosted pill as the metadata menu. */
+.lyrics-toggle {
+  /* The glyph is not painted from the icon file's own fill: the SVG is used as
+     a mask over a solid white background, and while the switch is ON the mask
+     is inverted so the area OUTSIDE the glyph is what gets filled and the
+     glyph itself stays a hole. */
+  --lyrics-toggle-icon: url("../../../assets/icons/lyricson.svg");
+
+  position: fixed;
+  right: 6.2vh;
+  bottom: 3.3vh;
+  z-index: 15;
+  opacity: 1;
+
+  display: grid;
+  width: var(--lyrics-toggle-size);
+  height: var(--lyrics-toggle-size);
+  padding: 0;
+  place-items: center;
+
+  border-radius: 6px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.0);
+
+  cursor: default;
+}
+
+.lyrics-toggle-icon {
+  position: relative;
+  display: block;
+  /* The fill covers the whole button, not just the glyph's bounding box —
+     otherwise "outside the glyph" would only be the corners of a box the glyph
+     itself fills edge to edge. */
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border-radius: inherit;
+  /* ON (the default state): two mask layers — a solid rect over the whole box
+     and the glyph centred at the size an <img> used to occupy — composited as
+     an exclusion. rect XOR glyph leaves everything except the glyph silhouette
+     painted, so the glyph reads as a cut-out. */
+  -webkit-mask-image: linear-gradient(#fff, #fff), var(--lyrics-toggle-icon);
+  -webkit-mask-size: 100% 100%, 70% 70%;
+  -webkit-mask-position: center, center;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: xor;
+  mask-image: linear-gradient(#fff, #fff), var(--lyrics-toggle-icon);
+  mask-size: 100% 100%, 70% 70%;
+  mask-position: center, center;
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: exclude;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Paint the frosted backdrop on a child pseudo-element rather than on the
+   masked icon itself so Chromium clips the blurred/saturated surface cleanly
+   to the icon silhouette instead of showing the whole unmasked box. */
+.lyrics-toggle-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(12px) saturate(200%);
+  -webkit-backdrop-filter: blur(12px) saturate(200%);
+  pointer-events: none;
+}
+
+/* OFF: no outside fill at all — the plain glyph is the whole mask, so only
+   its own silhouette is painted. */
+body.is-lyrics-hidden .lyrics-toggle-icon {
+  -webkit-mask: var(--lyrics-toggle-icon) no-repeat center / 70% 70%;
+  mask: var(--lyrics-toggle-icon) no-repeat center / 70% 70%;
+}
+
+body.is-lyrics-hidden .lyrics-toggle {
+  --lyrics-toggle-icon: url("../../../assets/icons/lyricsoff.svg");
+}
+
+.lyrics-toggle.is-solarium-glass,
+body[data-ui-style="ios"].is-ipados-landscape .lyrics-toggle.is-solarium-glass {
+  --solarium-lyrics-size: clamp(28px, 4.2vh, 44px);
+  width: var(--solarium-lyrics-size);
+  height: var(--solarium-lyrics-size);
+  border-radius: 50%;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  opacity: 1;
+  overflow: visible;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+}
+
+body:not([data-ui-style="ios"]):not([data-ui-style="tvos"]) .lyrics-toggle.is-solarium-glass {
+  right: 8px;
+  bottom: 8px;
+}
+
+body[data-ui-style="ios"].is-ipados-landscape .lyrics-toggle.is-solarium-glass {
+  top: auto;
+  left: auto;
+  right: 8px;
+  bottom: 8px;
+}
+
+.lyrics-toggle.is-solarium-glass:has([data-solarium-fallback="true"]) {
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+.solarium-lyrics-toggle__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.lyrics-toggle.is-solarium-glass .lyrics-toggle-icon::after,
+body[data-ui-style="ios"].is-ipados-landscape .lyrics-toggle.is-solarium-glass .lyrics-toggle-icon::after {
+  content: none;
+}
+
+.lyrics-toggle.is-solarium-glass .lyrics-toggle-icon,
+body[data-ui-style="ios"].is-ipados-landscape .lyrics-toggle.is-solarium-glass .lyrics-toggle-icon {
+  position: relative;
+  z-index: 1;
+  width: calc(100% - clamp(6px, 0.85vh, 8px));
+  height: calc(100% - clamp(6px, 0.85vh, 8px));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  opacity: 1;
+  -webkit-mask-image: linear-gradient(#fff, #fff), var(--lyrics-toggle-icon);
+  -webkit-mask-size: 100% 100%, 54% 54%;
+  -webkit-mask-position: center, center;
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: xor;
+  mask-image: linear-gradient(#fff, #fff), var(--lyrics-toggle-icon);
+  mask-size: 100% 100%, 54% 54%;
+  mask-position: center, center;
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: exclude;
+}
+
+body.is-lyrics-hidden .lyrics-toggle.is-solarium-glass .lyrics-toggle-icon,
+body[data-ui-style="ios"].is-ipados-landscape.is-lyrics-hidden .lyrics-toggle.is-solarium-glass .lyrics-toggle-icon {
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.86);
+  -webkit-mask: var(--lyrics-toggle-icon) no-repeat center / 40% 40%;
+  mask: var(--lyrics-toggle-icon) no-repeat center / 40% 40%;
+}
+
+.progress {
+  position: absolute;
+  top: var(--progress-top);
+  left: var(--art-left);
+  width: var(--art-size);
+  height: var(--progress-height);
+  overflow: hidden;
+  border-radius: calc(var(--progress-height) / 2);
+  background-color: rgba(255, 255, 255, 0.2423);
+  /* Frosted-glass track: the backdrop under the bar is blurred and pushed in
+     saturation, so the thin strip picks up the artwork instead of reading as
+     flat white. Saturation stays high so the colour survives the blur. */
+  backdrop-filter: blur(12px) saturate(170%);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  transform-origin: center;
+  will-change: transform;
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 600ms ease;
+}
+
+.progress:hover {
+  transform: scaleY(2);
+  border-radius: var(--progress-height) / calc(var(--progress-height) / 2);
+  background-color: rgba(255, 255, 255, 0.34);
+}
+
+.progress-fill {
+  width: var(--progress);
+  transition:
+    width 120ms ease-out,
+    background-color 600ms ease;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.3275);
+}
+
+.progress:hover .progress-fill {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+
+.progress:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 4px;
+}
+
+.time {
+  position: absolute;
+  top: calc(var(--time-baseline) - 0.8554em);
+  font-size: var(--time-size);
+  font-weight: 400;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.15);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.time-elapsed {
+  left: var(--art-left);
+  padding-right: 1.2em;
+}
+
+.time-remaining {
+  left: var(--art-right);
+  padding-left: 1.2em;
+  transform: translateX(-100%);
+}
+
+.playback-controls {
+  position: absolute;
+  top: calc(var(--time-baseline) + 0.5vh);
+  left: var(--art-left);
+  width: var(--art-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: max(12px, 1.5vh);
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
+/* Everything else in the player column scales with window height, so the
+   buttons do too. The old 68px cap left them small in fullscreen and the
+   glyph stayed a fixed 36px; keep the glyph at the same 36:68 ratio. */
+.playback-controls .aero-player {
+  --player-size: max(44px, 7.4vh);
+  --player-icon: calc(var(--player-size) * 0.56);
+  --player-tint: rgba(255, 255, 255, 0.1333);
+  height: var(--player-size);
+  flex: none;
+  cursor: default;
+}
+
+/* A pending native command must not erase the press highlight mid-gesture. */
+.playback-controls[aria-busy="true"] .aero-player--circle:disabled {
+  background-color: var(--player-tint);
+}
+
+/* The skip label ships a fixed 30px default, which stopped tracking the button
+   the moment the button started scaling with vh. Keep the upstream 30:68 ratio
+   so prev/next grow with the play glyph instead of staying pinned. */
+.playback-controls .aero-skip {
+  --skip-size: calc(var(--player-size) * 0.44);
+}
+
+/* Busy blocks repeated commands, but is not an unavailable player. Keep the
+   icon's normal color while its press and replacement animations finish. */
+.playback-controls[aria-busy="true"] .aero-player:disabled {
+  color: var(--player-label);
+}
+
+/* Frosted glyphs: the label's own letterforms mask a blurred, saturated copy
+   of the backdrop, so the text reads as the same glass as the progress bar
+   instead of a flat fill. renderer.js rasterises the current text into
+   --frost-mask (a canvas data URL); until that lands the class is absent and
+   the labels keep their normal colour. */
+.artist.frost-ready,
+.artist .metadata-marquee-text.frost-ready,
+body[data-ui-style="tvos"] .title.frost-ready,
+.time.frost-ready {
+  color: transparent;
+  /* Clip the completed label, including its glass child. In a transparent
+     window, masking the backdrop-filter pseudo-element itself can leave its
+     entire rectangular surface visible instead of just the letterforms. */
+  -webkit-mask-image: var(--frost-mask);
+  mask-image: var(--frost-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.artist.frost-ready::after,
+.artist .metadata-marquee-text.frost-ready::after,
+body[data-ui-style="tvos"] .title.frost-ready::after,
+.time.frost-ready::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--frost-tint, rgba(255, 255, 255, 0.2423));
+  backdrop-filter: blur(12px) saturate(170%);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+}
+
+.artist.frost-ready,
+.artist .metadata-marquee-text.frost-ready {
+  --frost-tint: rgba(255, 255, 255, 0.36);
+}
+
+.time.frost-ready {
+  --frost-tint: rgba(255, 255, 255, 0.2423);
+}
+
+/* Clocks and tvOS frosted labels route through the synchronous canvas frost
+   layer instead of CSS mask-image + backdrop-filter, which can expose a
+   rectangular surface in transparent windows. */
+.frost-canvas-ready {
+  color: transparent !important;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.frost-canvas-ready::after {
+  display: none;
+}
+
+.frost-canvas-ready > .frosted-label-pixels {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+body[data-ui-style="tvos"] .title.frost-canvas-ready > .frosted-label-pixels {
+  inset: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
+}
+
+.lyrics {
+  position: absolute;
+  top: var(--titlebar-height);
+  bottom: 0;
+  left: calc(50vw + 20px);
+  width: 46vw;
+  /* The column paints without clipping so the blur on a dimmed row and the
+     top/bottom fade mask keep their full halo; WebKit ignores
+     overflow-clip-margin and would otherwise slice both at the box edge. */
+  overflow: visible;
+  /* Blend the completed, masked lyric group with the mesh; glyph blending
+     alone cannot cross the fade-mask group. */
+  mix-blend-mode: plus-lighter;
+
+  transform-origin: 50% 50%;
+  /* A hidden column fades out before its visibility flips, so the hand-off
+     plays in both directions: visible -> hidden waits for the fade, hidden ->
+     visible restores at once. Only the way back in is held back by
+     --lyrics-toggle-delay, and visibility follows delay + duration there so it
+     never cuts that fade short. */
+  transition:
+    transform var(--lyrics-toggle-duration) var(--lyrics-toggle-ease) var(--lyrics-toggle-delay),
+    opacity var(--lyrics-toggle-duration) var(--lyrics-toggle-ease) var(--lyrics-toggle-delay),
+    visibility 0s linear 0s;
+}
+
+body.is-lyrics-hidden .lyrics {
+  transform: scale(0.95);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  /* Turning the lyrics off starts on the same frame as the click: no delay. */
+  transition:
+    transform var(--lyrics-disable-duration) var(--lyrics-toggle-ease) 0s,
+    opacity var(--lyrics-disable-duration) var(--lyrics-toggle-ease) 0s,
+    visibility 0s linear var(--lyrics-disable-duration);
+}
+
+.lyrics-mask {
+  position: absolute;
+  /* Give horizontal blur and glyph-scale halos 32px of room inside the mask
+     border box so WebKit's implicit mask clip never slices the left edge. */
+  inset: -12px -32px;
+  -webkit-mask-image: linear-gradient(to bottom,
+      transparent 0%,
+      #000 12%,
+      #000 88%,
+      transparent 100%);
+  mask-image: linear-gradient(to bottom,
+      transparent 0%,
+      #000 12%,
+      #000 88%,
+      transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* The track hides when there is nothing to sing. The container itself stays
+   visible so the loading spinner can sit at its centre. */
+.lyrics.is-empty .lyrics-track {
+  opacity: 0;
+}
+
+.lyrics-track {
+  text-transform: var(--lyrics-text-transform);
+  position: absolute;
+  top: 12px;
+  left: 32px;
+  width: calc(100% - 64px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  row-gap: var(--lyrics-line-spacing);
+  opacity: 1;
+  transition: opacity 300ms ease;
+}
+
+/* aeroui aero-spinner (sm), vendored from
+   https://github.com/nurislamaibekuly/aeroui (MIT). */
+.aero-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  opacity: 0.8;
+}
+
+.aero-spinner svg {
+  width: 100%;
+  height: 100%;
+}
+
+.aero-spinner rect {
+  backdrop-filter: blur(12px) saturate(200%);
+  -webkit-backdrop-filter: blur(12px) saturate(200%);
+  animation: aero-fade 1s ease-in-out infinite;
+}
+
+.aero-spinner rect:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.aero-spinner rect:nth-child(2) {
+  animation-delay: -0.875s;
+}
+
+.aero-spinner rect:nth-child(3) {
+  animation-delay: -0.75s;
+}
+
+.aero-spinner rect:nth-child(4) {
+  animation-delay: -0.625s;
+}
+
+.aero-spinner rect:nth-child(5) {
+  animation-delay: -0.5s;
+}
+
+.aero-spinner rect:nth-child(6) {
+  animation-delay: -0.375s;
+}
+
+.aero-spinner rect:nth-child(7) {
+  animation-delay: -0.25s;
+}
+
+.aero-spinner rect:nth-child(8) {
+  animation-delay: -0.125s;
+}
+
+@keyframes aero-fade {
+
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+
+  12.5% {
+    opacity: 0.8;
+  }
+}
+
+.aero-spinner--sm {
+  width: 20px;
+  height: 20px;
+}
+
+/* Centred in the lyrics column while a fetch is in flight. */
+.lyrics-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: rgba(255, 255, 255, 0.85);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 200ms ease,
+    visibility 0s linear 200ms;
+}
+
+/* Stop the 8 backdrop-filter SVG rect animations while lyrics are playing so
+   they do not force per-frame backdrop sampling inside `.lyrics-mask`. */
+.lyrics:not(.is-loading) .lyrics-spinner rect {
+  animation: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.lyrics.is-loading .lyrics-spinner {
+  opacity: 1;
+  visibility: visible;
+  /* Cache hits resolve in a frame or two; delay the reveal so they do not
+     flash a spinner. */
+  transition:
+    opacity 200ms ease 150ms,
+    visibility 0s linear 0s;
+}
+
+/* Specs.vocalGroupWidthCoefficient: a lyric group wraps at 85% of the column,
+   leaving the right margin that keeps long lines from running edge to edge. */
+.lyrics-line {
+  position: relative;
+  width: calc(100% * var(--lyrics-width-coefficient));
+  margin: 0;
+  padding: 0;
+  font-size: var(--lyrics-font-size);
+  font-weight: var(--lyrics-font-weight, 700);
+  line-height: var(--lyrics-line-height);
+  color: var(--lyrics-color);
+  /* Bright and dim text alpha are driven independently by the lyric view. */
+  opacity: var(--line-opacity, 0.175);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  cursor: default;
+  transform-origin: left center;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  filter: blur(var(--line-blur, 0px));
+}
+
+/* The hover plate is outside each row's blur and opacity group. Its padded
+   paint box does not participate in text layout or intercept a lyric click. */
+.lyrics-line-hover {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+.lyrics-line-hover::before {
+  content: '';
+  position: absolute;
+  inset: -0.233333em -0.266667em;
+  border-radius: 0.266667em;
+  background: rgb(255 255 255 / 8%);
+}
+.lyrics-line-hover[hidden] { display: none; }
+
+/* Settings toggle: zeroes the per-line --line-blur LyricsView writes. */
+.lyrics.is-line-blur-off .lyrics-line {
+  --line-blur: 0px !important;
+  filter: none !important;
+}
+
+.lyrics-line.is-active {
+  color: var(--lyrics-color);
+}
+
+.lyrics-main-text {
+  display: block;
+}
+
+.lyrics-line.is-credit {
+  font-size: calc(var(--lyrics-font-size) * 0.56);
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.lyrics-line.is-credit strong {
+  font-weight: 700;
+}
+
+/* Keep the credits together while preserving the gap after the final lyric. */
+.lyrics-line.is-credit + .lyrics-line.is-credit {
+  margin-top: calc(0.3em - var(--lyrics-line-spacing));
+}
+
+/* Right-to-left lyrics. The app's own copy stays left-to-right, but a lyric
+   row is laid out in the script it is written in: the text starts at the row's
+   right edge and the backing phrase grows from the right with it. */
+.lyrics-line[dir="rtl"] {
+  transform-origin: right center;
+}
+
+/* The track is a left-aligned flex column, so an RTL row's box would sit on
+   the left with its text right-aligned inside it, leaving a dead gap on the
+   right. Pin the box itself to the right edge, duet or not. */
+.lyrics-line[dir="rtl"]:not(.is-credit) {
+  align-self: flex-end;
+  margin-left: auto;
+  text-align: right;
+}
+
+.lyrics-line[dir="rtl"] .lyrics-background-inner {
+  text-align: right;
+}
+
+.lyrics-line[dir="rtl"] .lyrics-background-text {
+  transform-origin: right top;
+}
+
+.lyrics-line[dir="rtl"] .lyrics-background-text.is-before {
+  transform-origin: right bottom;
+}
+
+/* SF Arabic draws the Arabic runs; its missing Latin glyphs fall through to
+   the family the user chose for the rest of the app, so an English word inside
+   an Arabic line keeps the app's typography. Only rows that contain Arabic
+   take the swap. */
+.lyrics-line.is-arabic {
+  font-family: "SF Arabic", var(--app-font-family,
+    "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+    sans-serif);
+}
+
+/* LyricsView drives this height with the backing vocal's spring. A separate
+   CSS height transition would move the rows on a different animation clock. */
+.lyrics-background-slot {
+  display: block;
+  width: 100%;
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lyrics-background-text {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  min-height: 0;
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  pointer-events: none;
+  /* Compensate for the lead row's alpha so backing brightness stays independent. */
+  opacity: calc(var(--background-opacity, 0) / max(var(--line-opacity, 0.85), 0.001));
+  transform-origin: left top;
+  transition: none;
+  --word-dark-alpha: var(--dark-mask-alpha);
+}
+
+.lyrics-background-text.is-before {
+  transform-origin: left bottom;
+}
+
+.lyrics-background-inner {
+  display: block;
+  /* Include spacing in the measured content, not the zero-height slot. */
+  padding: var(--lyrics-background-top-spacing) 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: var(--lyrics-background-font-size);
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.lyrics-background-text.is-before .lyrics-background-inner {
+  padding-top: 0;
+  padding-bottom: var(--lyrics-background-top-spacing);
+}
+
+.lyrics-background-text.is-background-active {
+  visibility: visible;
+  will-change: transform;
+}
+
+/* Pause preserves only the current parent's backing phrase, not audio tails. */
+.lyrics:not(.is-playing) .lyrics-background-text:not(.is-background-active) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.lyrics-background-text.is-background-hidden {
+  visibility: hidden;
+}
+
+.lyrics-line.is-duet .lyrics-background-inner {
+  text-align: right;
+}
+
+.lyrics-line.is-duet .lyrics-background-text {
+  transform-origin: right top;
+}
+
+.lyrics-line.is-duet .lyrics-background-text.is-before {
+  transform-origin: right bottom;
+}
+
+/* Backing words share the lead's word/glyph painter and playback clock. Keep
+   their mask throughout the exit so unsung text cannot flash bright. */
+.lyrics-background-word {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-background-text {
+    transition: none;
+  }
+
+  .lyrics-background-word {
+    transition: none;
+  }
+}
+
+/* Second voice in a duet: the line answers the one before it, so it sits flush
+   right and the pair reads as a call and response instead of one paragraph.
+   Alignment only — width, wrapping and the karaoke fill are untouched. */
+.lyrics-line.is-duet {
+  align-self: flex-end;
+  text-align: right;
+  transform-origin: right center;
+}
+
+/* Words are atomic boxes so the per-word spring can use a compositor
+   `transform` (transforms don't apply to inline boxes). Words that must break
+   across rows fall back to `display: inline`, and their spring is applied to
+   each glyph box instead — the same split Apple Music uses. */
+/* Keep a word's timed syllables on the same row. CJK and oversized tokens
+   remain inline so their existing character wrapping still works. */
+.lyrics-emphasis {
+  display: inline;
+}
+
+.lyrics-emphasis.is-unbreakable {
+  display: inline-block;
+  white-space: pre;
+  vertical-align: baseline;
+}
+
+.lyrics-word:not(.allow-break) {
+  display: inline-block;
+  vertical-align: baseline;
+  /* `pre`, not `nowrap`: nowrap collapses, and a collapsed trailing space at
+     the end of the word box is trimmed away, which silently removes the gap
+     between words. Preserved spaces keep the spacing exact. */
+  white-space: pre;
+  transform-origin: 50% 80%;
+  backface-visibility: hidden;
+}
+
+.lyrics-word.allow-break {
+  display: inline;
+  white-space: pre-wrap;
+}
+
+/* Per-glyph motion box: the stagger, the spread and the held lift all live here
+   as `transform`, which the compositor animates without touching layout. The
+   glyph fill is on the child, never here — a clipped element must not itself be
+   transformed, or the clip exposes its rectangular edges. */
+.lyrics-char-motion {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+  transform-origin: 50% 80%;
+  backface-visibility: hidden;
+}
+
+/* Each glyph carries its own clipped background, driven by `--char-fill` (the
+   word's band position shifted into this glyph's box). Per-glyph is required,
+   not a stylistic choice: a single clipped background on the word stops
+   painting the glyphs the moment they become compositor layers. */
+.lyrics-char {
+  display: inline-block;
+}
+
+/* Glow: a second copy of the glyph painted only as a blurred text-shadow. It is
+   a sibling of the glyph rather than part of the fill, so the fill can never
+   clip it. Only `opacity` is animated, so the flare composites on the GPU
+   instead of forcing a re-rasterisation of the glyph. */
+.lyrics-char-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+  white-space: pre;
+}
+
+.lyrics-char-glow::before {
+  content: attr(data-glyph);
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 0.28em var(--lyrics-glow-color, rgba(255, 255, 255, 0.75));
+}
+
+.lyrics-line.is-active .lyrics-word,
+.lyrics-line.is-active .lyrics-char-motion {
+  will-change: transform;
+}
+
+.lyrics-line.is-active .lyrics-char-glow {
+  will-change: opacity;
+}
+
+/* Retain the fill mask on outgoing timed rows while both alpha channels
+   settle. Removing it at deactivation would brighten their unsung text. */
+.lyrics-line:is(.has-words, .is-active) .lyrics-word:not(.has-chars),
+.lyrics-line:is(.has-words, .is-active) .lyrics-char,
+.has-background-words .lyrics-word:not(.has-chars),
+.has-background-words .lyrics-char {
+  background: var(--lyrics-fill-bright);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  -webkit-mask-image: linear-gradient(to right,
+      rgb(0 0 0 / var(--bright-mask-alpha)) var(--glyph-fill, 0px),
+      rgb(0 0 0 / calc(var(--bright-mask-alpha) * 0.44 + var(--word-dark-alpha) * 0.56)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px) * 0.5),
+      rgb(0 0 0 / var(--word-dark-alpha)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px)));
+  mask-image: linear-gradient(to right,
+      rgb(0 0 0 / var(--bright-mask-alpha)) var(--glyph-fill, 0px),
+      rgb(0 0 0 / calc(var(--bright-mask-alpha) * 0.44 + var(--word-dark-alpha) * 0.56)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px) * 0.5),
+      rgb(0 0 0 / var(--word-dark-alpha)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px)));
+}
+
+/* Plain words read `--fill`; glyph boxes read their own `--char-fill`. */
+.lyrics-line:is(.has-words, .is-active) .lyrics-word:not(.has-chars),
+.has-background-words .lyrics-word:not(.has-chars) {
+  --glyph-fill: var(--fill, 0px);
+}
+
+.lyrics-line:is(.has-words, .is-active) .lyrics-char,
+.has-background-words .lyrics-char {
+  --glyph-fill: var(--char-fill, 0px);
+}
+
+/* A right-to-left word starts at its right edge, and `--fill` is measured from
+   a word's own start, so the same karaoke band has to travel the other way
+   across Arabic, Hebrew and any other RTL run. */
+.lyrics-line:is(.has-words, .is-active) .lyrics-word.is-rtl,
+.has-background-words .lyrics-word.is-rtl {
+  -webkit-mask-image: linear-gradient(to left,
+      rgb(0 0 0 / var(--bright-mask-alpha)) var(--glyph-fill, 0px),
+      rgb(0 0 0 / calc(var(--bright-mask-alpha) * 0.44 + var(--word-dark-alpha) * 0.56)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px) * 0.5),
+      rgb(0 0 0 / var(--word-dark-alpha)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px)));
+  mask-image: linear-gradient(to left,
+      rgb(0 0 0 / var(--bright-mask-alpha)) var(--glyph-fill, 0px),
+      rgb(0 0 0 / calc(var(--bright-mask-alpha) * 0.44 + var(--word-dark-alpha) * 0.56)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px) * 0.5),
+      rgb(0 0 0 / var(--word-dark-alpha)) calc(var(--glyph-fill, 0px) + var(--fade-width, 0px)));
+}
+
+.lyrics-interlude {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  /* A zero-height flex item still adds a row gap. Hidden dots must not
+     participate in the track's layout at all. */
+  display: none;
+  align-items: center;
+  overflow: hidden;
+  font-size: 5.62vh;
+  color: #fff;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lyrics-interlude.is-active {
+  display: flex;
+  height: 2.007em;
+}
+
+.lyrics-interlude-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24em;
+  opacity: 0;
+  transform: scale(0);
+  transform-origin: center;
+  backdrop-filter: blur(12px) saturate(200%);
+  -webkit-backdrop-filter: blur(12px) saturate(200%);
+  will-change: transform, opacity;
+}
+
+.lyrics-interlude-dot {
+  display: block;
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  will-change: opacity;
+}
+
+.file-drop {
+  position: fixed;
+  inset: 12px;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.42);
+  border-radius: 18px;
+  background: rgba(20, 20, 20, 0.32);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 1.35vh;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  opacity: 0;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  transition: opacity 140ms ease;
+}
+
+body.is-file-drag .file-drop {
+  opacity: 1;
+}
+
+.lyrics-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 2.4vh;
+  z-index: 40;
+  max-width: min(70vw, 460px);
+  padding: 0.9vh 1.5vh;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(16, 16, 16, 0.66);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.25vh;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  backdrop-filter: blur(12px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.lyrics-notice.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Manual scroll: the user is reading ahead, so every row drops its blur and
+   dim (Specs.deselectedScrollTextColor) until the view returns to the line. */
+.lyrics.is-scrolling .lyrics-line:not(.is-active) {
+  filter: blur(0);
+}
+
+/* Specs.lineProgressionGradientColor: tint instead of white at high contrast. */
+@media (prefers-contrast: more) {
+  :root {
+    --lyrics-fill-bright: AccentColor;
+    --lyrics-fill-dim: color-mix(in srgb, AccentColor 40%, transparent);
+  }
+
+  .lyrics-line {
+    opacity: 0.6;
+  }
+}
+
+*,
+*::before,
+*::after {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+:focus,
+:focus-visible,
+:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* SheetView page host: full-viewport app root that scales back under sheets.
+   The clip draws the window radius and also contains the fixed children inside
+   (drag strip, notices), which would otherwise paint past the rounded edge. */
+#app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  clip-path: inset(0 round var(--window-radius));
+}
+
+/* These mount on <body>, outside #app's clipped subtree, and cover the whole
+   window with a shade. Clip the alert shade itself: clipping its parent would
+   create a backdrop root and prevent the card from blurring the player. */
+.menuview__shade,
+.alertview__backdrop {
+  clip-path: inset(0 round var(--window-radius));
+}
+
+body.is-startup-pending #app {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.is-startup-revealing #app {
+  /* Reveal promptly, then let the scale settle on a longer, gentle tail. */
+  animation:
+    startup-reveal 1s cubic-bezier(0.16, 1, 0.3, 1) both,
+    startup-reveal-opacity 800ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes startup-reveal {
+  from { transform: scale(0.9); }
+  to { transform: scale(1); }
+}
+
+@keyframes startup-reveal-opacity {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.is-startup-revealing #app {
+    animation: startup-reveal-reduced 200ms ease-in-out both;
+  }
+}
+
+@keyframes startup-reveal-reduced {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---- sheet content ---- */
+
+.sheet-heading {
+  margin: 20px 32px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.sheet-group {
+  margin: 0 16px 20px;
+  background: rgba(120, 120, 128, 0.12);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.sheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 17px;
+  color: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+button.sheet-row {
+  cursor: default;
+}
+
+button.sheet-row:active {
+  background: rgba(120, 120, 128, 0.2);
+}
+
+.sheet-row+.sheet-row {
+  border-top: 0.5px solid rgba(60, 60, 67, 0.29);
+}
+
+.sheet-row__value {
+  opacity: 0.5;
+  font-size: 15px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-row--text {
+  gap: 16px;
+}
+
+.sheet-text-input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  padding: 6px 0;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-align: right;
+}
+
+.sheet-text-input::placeholder {
+  color: inherit;
+  opacity: 0.42;
+}
+
+.sheet-text-input:focus {
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.28);
+}
+
+.sheet-text-input:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(0, 122, 255, 0.55);
+}
+
+/* Appearance picker rows. The anchor is a zero-size MenuView trigger parked at
+   the row's trailing edge: MenuView scales a menu out of the trigger's centre,
+   so parking it there is what makes the menu grow from the value instead of
+   stretching out of its own left edge. */
+.sheet-menu-row {
+  position: relative;
+}
+
+.sheet-menu-anchor {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* The appearance pickers are menus opened from a row inside a sheet, and the
+   sheet sits on the app's highest layer. Lift menuview above it, or the menu
+   opens behind the sheet it was launched from. */
+body>.menuview,
+body>.menuview__blur,
+body>.menuview__shade {
+  --menuview-z: 2147483003;
+}
+
+/* iOS-style switch */
+.sheet-switch {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  position: relative;
+  width: 51px;
+  height: 31px;
+  margin: 0;
+  border: none;
+  border-radius: 15.5px;
+  background: rgba(120, 120, 128, 0.32);
+  cursor: default;
+  transition: background 0.2s ease;
+}
+
+.sheet-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease;
+}
+
+.sheet-switch:checked {
+  background: #34c759;
+}
+
+.sheet-switch:checked::after {
+  transform: translateX(20px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheet-group {
+    background: rgba(120, 120, 128, 0.24);
+  }
+
+  .sheet-row+.sheet-row {
+    border-top-color: rgba(84, 84, 88, 0.6);
+  }
+}
+
+/* iOS-style slider inside a sheet row. --p is the filled fraction, painted
+   by the row's input handler. */
+.sheet-row--slider {
+  gap: 16px;
+}
+
+/* Numeric readout on sliders that set an exact value; a fixed width keeps the
+   track from shifting as the number changes length. */
+.sheet-row--slider .sheet-row__value {
+  flex: none;
+  min-width: 52px;
+}
+
+.sheet-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+}
+
+.sheet-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      #34c759 var(--p, 50%),
+      rgba(120, 120, 128, 0.32) var(--p, 50%));
+}
+
+.sheet-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  margin-top: -12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheet-slider::-webkit-slider-runnable-track {
+    background: linear-gradient(to right,
+        #34c759 var(--p, 50%),
+        rgba(120, 120, 128, 0.4) var(--p, 50%));
+  }
+}
+
+.sheet-row--danger {
+  color: #d70015;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheet-row--danger {
+    color: #ff453a;
+  }
+}
+
+body.is-bleed-artwork .title {
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- appearance change feedback -------------------------------------------
+   renderer.js adds these classes for one gesture after the setting changes.
+   Everything is opacity/blur only: the lyrics track's transform belongs to
+   LyricsView's scrolling, so the typography pulse must not touch it. */
+
+/* Theme flip: a neutral radial sweep that grows from the sheet and fades, so
+   the palette swap reads as a transition instead of a hard cut. Grey because
+   the same flash has to register on both themes. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -10%;
+  z-index: 2147483002;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 88%,
+      rgba(127, 127, 127, 0.34) 0%,
+      rgba(127, 127, 127, 0.13) 38%,
+      rgba(127, 127, 127, 0) 68%);
+  transform: scale(0.85);
+}
+
+body.is-theme-flash::after {
+  animation: theme-sweep 560ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes theme-sweep {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.85);
+  }
+
+  60% {
+    opacity: 0.45;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.25);
+  }
+}
+
+/* The sheet's own surface eases between the two palettes underneath the sweep. */
+.sheetview {
+  transition: background-color 260ms ease, color 260ms ease;
+}
+
+/* Typography flip: the lines blur away and settle back in as the new metrics
+   land, covering the re-wrap while the fill geometry is re-measured. */
+.lyrics-track.is-retyping {
+  animation: lyrics-retype 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes lyrics-retype {
+  0% {
+    opacity: 0.15;
+    filter: blur(7px);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  body.is-theme-flash::after,
+  .lyrics-track.is-retyping {
+    animation: none;
+  }
+}
+
+/* Telemetry stays legible over artwork and never captures player input. */
+.developer-overlay {
+  position: fixed;
+  top: 44px;
+  right: 12px;
+  z-index: 2147483002;
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: calc(100vh - 72px);
+  overflow: clip;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #151515d9;
+  backdrop-filter: blur(12px) saturate(200%);
+  color: #fff;
+  font: 12px/1.5 ui-monospace, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  user-select: none;
+}
+
+.developer-overlay[hidden] { display: none; }
+
+.developer-settings { transform-origin: center top; }
+.developer-overlay { transform-origin: right top; }
+.developer-settings[hidden] { display: none; }
+
+/* Layout ratios follow the supplied Apple TV lyrics screen. Keep the larger
+   height-based typography so desktop windows retain the original tvOS size. */
+body[data-ui-style="tvos"] {
+  --tvos-control-size: max(32px, 3.4vh);
+  --art-size: min(27.25vw, 49vh);
+  --art-half: calc(var(--art-size) / 2);
+  --art-left: 7.8vw;
+  --art-right: calc(var(--art-left) + var(--art-size));
+  --art-top: 19.45vh;
+  --tvos-player-x: 0px;
+  --art-radius: 1vh;
+  --title-size: max(14px, 2.5vh);
+  --artist-size: max(13px, 2.5vh);
+  --time-size: max(11px, 2.1vh);
+  --lyrics-font-size: calc(var(--lyrics-font-base, 5.83vh) * 1.25);
+  --lyrics-font-weight: var(--tvos-font-weight, 700);
+  --lyrics-line-height: 1.13;
+  --lyrics-line-spacing: calc(max(60px, calc(var(--lyrics-font-size) * 0.7)) * var(--lyrics-spacing-scale, 1));
+  --lyrics-anchor-ratio: 0.435;
+  --lyrics-width-coefficient: 0.85;
+  --progress-top: 85.3vh;
+  --progress-height: max(4px, 0.8vh);
+  --time-baseline: 89.3vh;
+}
+
+body[data-ui-style="tvos"] .artwork {
+  transform: scale(1);
+}
+/* Translate every part of the album group by the same amount and clock.
+   Keep geometry responsive without separately animating each child's left. */
+body[data-ui-style="tvos"] .album-group {
+  position: absolute;
+  display: grid;
+  grid-template-columns: 100%;
+  grid-template-rows: var(--art-size) auto auto;
+  left: var(--art-left);
+  top: 50%;
+  width: var(--art-size);
+  transform: translateY(-50%);
+  translate: var(--tvos-player-x) 0;
+  transition: translate var(--lyrics-toggle-duration) var(--lyrics-toggle-ease);
+}
+body[data-ui-style="tvos"] .artwork {
+  position: relative;
+  grid-area: 1 / 1;
+  top: auto;
+  left: auto;
+  width: 100%;
+  height: var(--art-size);
+  translate: none;
+  transition: opacity 320ms ease;
+}
+body[data-ui-style="tvos"] .player-column { transform: none; }
+body[data-ui-style="tvos"] .title,
+body[data-ui-style="tvos"] .artist {
+  box-sizing: border-box;
+  padding: 0;
+  text-align: center;
+  line-height: 1.3;
+  /* The frosted artist's absolute ::after must stay inside this label,
+     rather than using the entire album group as its containing block. */
+  position: relative;
+  inset: auto;
+  width: 100%;
+  translate: none;
+  /* Let the glyph backdrop filter sample the mesh behind the album group. */
+  mix-blend-mode: normal;
+}
+body[data-ui-style="tvos"] .title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  overflow: visible;
+}
+/* The title raster includes a two-pixel gutter for wrapped glyphs. Keep its
+   original scale and origin when applying that raster to the label itself. */
+body[data-ui-style="tvos"] .title.frost-ready {
+  -webkit-mask-size: calc(100% + 4px) calc(100% + 4px);
+  mask-size: calc(100% + 4px) calc(100% + 4px);
+  -webkit-mask-position: -2px -2px;
+  mask-position: -2px -2px;
+}
+body[data-ui-style="tvos"] .title-row {
+  --tvos-title-tint: rgba(255, 255, 255, 0.6);
+  grid-area: 2 / 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.3em;
+  width: 100%;
+  margin-top: 1.6vh;
+  font-size: var(--title-size);
+}
+body[data-ui-style="tvos"] .title {
+  --frost-tint: var(--tvos-title-tint);
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  color: var(--tvos-title-tint);
+}
+body[data-ui-style="tvos"] .title.frost-ready { color: transparent; }
+body[data-ui-style="tvos"] .artist.frost-ready,
+body[data-ui-style="tvos"] .artist .metadata-marquee-text.frost-ready {
+  --frost-tint: rgba(255, 255, 255, 0.52);
+}
+body[data-ui-style="tvos"] .time.frost-ready {
+  --frost-tint: rgba(255, 255, 255, 0.45);
+}
+body[data-ui-style="tvos"] .artist { grid-area: 3 / 1; margin-top: 0.15vh; }
+/* Keep masked metadata above the artwork's temporary 3D compositing layer. */
+body[data-ui-style="tvos"] .title-row,
+body[data-ui-style="tvos"] .artist {
+  position: relative;
+  z-index: 4;
+}
+body[data-ui-style="tvos"] .artist:empty { display: none; }
+body[data-ui-style="tvos"] .now-playing-indicator {
+  display: flex;
+  flex: 0 0 1em;
+  align-items: flex-end;
+  gap: 0.13em;
+  height: 0.7em;
+  margin-top: 0.3em;
+}
+.now-playing-indicator > span {
+  flex: 1;
+  height: 100%;
+  border-radius: 0.08em;
+  background: var(--tvos-title-tint);
+  backdrop-filter: blur(12px) saturate(170%);
+  transform-origin: center bottom;
+  transform: scaleY(var(--bar-rest));
+  animation: now-playing-bars 850ms ease-in-out infinite alternate;
+}
+.now-playing-indicator > span:nth-child(1) { --bar-rest: 0.25; --bar-peak: 0.8; animation-delay: -200ms; }
+.now-playing-indicator > span:nth-child(2) { --bar-rest: 0.45; --bar-peak: 1; animation-duration: 650ms; animation-delay: -500ms; }
+.now-playing-indicator > span:nth-child(3) { --bar-rest: 0.3; --bar-peak: 0.9; animation-duration: 950ms; animation-delay: -700ms; }
+.now-playing-indicator > span:nth-child(4) { --bar-rest: 0.6; --bar-peak: 1; animation-duration: 750ms; animation-delay: -300ms; }
+body.is-paused .now-playing-indicator > span { animation-play-state: paused; }
+@keyframes now-playing-bars {
+  from { transform: scaleY(var(--bar-rest)); }
+  to { transform: scaleY(var(--bar-peak)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .now-playing-indicator > span { animation: none; }
+}
+body[data-ui-style="tvos"] .metadata-menu {
+  top: auto;
+  bottom: 3.8vh;
+  left: auto;
+  right: 4.2vw;
+  transform: none;
+  width: var(--tvos-control-size);
+  height: var(--tvos-control-size);
+  background: rgba(255, 255, 255, 0.14);
+  border: 0;
+  box-sizing: border-box;
+}
+/* The lyrics column ends at 86vh and the bar sits at 85.3vh, so without a
+   positive z-index the later-in-DOM .lyrics box swallows every click on the
+   middle of the full-width scrubber. */
+body[data-ui-style="tvos"] :is(.progress, .time) {
+  z-index: 16;
+}
+body[data-ui-style="tvos"] .progress { left: 4.2vw; width: 91.6vw; }
+body[data-ui-style="tvos"] .time-elapsed {
+  left: calc(4.2vw + 91.6vw * var(--timeline-position, 0));
+  padding: 0;
+  transform: translateX(-50%);
+}
+body[data-ui-style="tvos"] .time-remaining { left: 95.8vw; }
+body[data-ui-style="tvos"] .playback-controls {
+  display: none;
+}
+body[data-ui-style="tvos"] .playback-controls .aero-player { --player-size: max(36px, 5.5vh); }
+/* The column paints without clipping so the blur on a dimmed row keeps its
+   full halo; the mask above still fades rows out before the transport and the
+   artwork, so nothing spills into either. */
+body[data-ui-style="tvos"] .lyrics {
+  top: 0;
+  left: 43.75vw;
+  width: 45vw;
+  bottom: 14vh;
+  overflow: visible;
+}
+body[data-ui-style="tvos"].is-tvos-idle .lyrics { bottom: 0; }
+body[data-ui-style="tvos"] .lyrics-toggle {
+  --lyrics-toggle-size: var(--tvos-control-size);
+  right: calc(4.2vw + var(--tvos-control-size) + 16px);
+  bottom: 3.8vh;
+  border-radius: 1vh;
+}
+body[data-ui-style="tvos"].is-lyrics-hidden {
+  --tvos-player-x: calc(50vw - 7.8vw - var(--art-half));
+}
+
+body[data-ui-style="tvos"] :is(.progress, .time, .metadata-menu, .lyrics-toggle) {
+  transition: opacity 350ms ease, visibility 0s linear;
+}
+body[data-ui-style="tvos"] .progress {
+  transition:
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-radius 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 600ms ease,
+    opacity 350ms ease,
+    visibility 0s linear;
+}
+body[data-ui-style="tvos"].is-tvos-idle :is(.progress, .time, .metadata-menu, .lyrics-toggle) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 350ms ease, visibility 0s linear 350ms;
+}
+body[data-ui-style="tvos"].is-tvos-idle,
+body[data-ui-style="tvos"].is-tvos-idle * { cursor: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  body[data-ui-style="tvos"] .album-group { transition: none; }
+  body[data-ui-style="tvos"] .artwork { transition: opacity 150ms linear; }
+  body[data-ui-style="tvos"] :is(.progress, .time, .metadata-menu, .lyrics-toggle) {
+    transition: opacity 150ms linear, visibility 0s linear;
+  }
+  body[data-ui-style="tvos"].is-tvos-idle :is(.progress, .time, .metadata-menu, .lyrics-toggle) {
+    transition: opacity 150ms linear, visibility 0s linear 150ms;
+  }
+}
+
+/* The switcher owns the outgoing/incoming animation. Geometry must settle
+   while invisible, without starting a second CSS transition underneath. */
+.stage.is-ui-switching .artwork,
+.stage.is-ui-switching .album-group,
+.stage.is-ui-switching .title,
+.stage.is-ui-switching .artist,
+.stage.is-ui-switching .player-column,
+.stage.is-ui-switching .lyrics { transition: none !important; }
+
+/* Preserve row geometry so fading a completed phrase never adds another
+   scroll movement. Manual scrolling makes past lyrics available again. */
+.lyrics.is-fade-completed:not(.is-scrolling) .lyrics-line.is-completed:not(.is-active) {
+  opacity: var(--completed-opacity, 0);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lyrics.is-fade-completed:not(.is-scrolling) .lyrics-line.is-completed:not(.is-active) {
+    /* This opt-in effect is opacity-only; keep it visible without animating
+       the row's blur or position for reduced-motion users. */
+    transition: none;
+  }
+}
+
+.artwork-outgoing { z-index: 3; pointer-events: none; }
+body[data-ui-style="tvos"] .artwork {
+  box-shadow: none;
+  rotate: var(--cover-tilt, 0 1 0 0deg);
+  transition: opacity 320ms ease, rotate 220ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-ui-style="tvos"] .artwork { rotate: none; transition: opacity 150ms linear; }
+}
+
+/* Keep the label and text anchored to their original layout. Only the clipping
+   viewport extends left, so departing glyphs can fade outside the label instead
+   of being cut off before they reach the shifted gradient. */
+body .title.is-marquee,
+body .artist.is-marquee {
+  white-space: nowrap;
+  overflow: visible;
+  overflow-wrap: normal;
+  text-overflow: clip;
+  text-align: start;
+}
+.metadata-marquee-viewport {
+  display: block;
+  width: calc(100% + 10px);
+  margin-left: -10px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.metadata-marquee-text {
+  position: relative;
+  display: block;
+  width: max-content;
+  margin-left: 10px;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* Mask transparency does not remove the lyric layer from hit-testing. Reserve
+   both the top metadata band and the bottom control band so the header and
+   controls cannot scroll or seek lyrics. */
+body[data-ui-style="ios"]:not(.is-ipados-landscape) .player-column::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--ios-lyrics-clip-top, 22vh);
+  z-index: 15;
+}
+
+body:is([data-ui-style="ios"], [data-ui-style="tvos"]) .player-column::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--progress-top) - 12px);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+}
+body[data-ui-style="tvos"] :is(.metadata-menu, .lyrics-toggle) { z-index: 16; }
+
+/* Idle is a viewing state. Window-level movement/keyboard listeners wake the
+   controls before the player becomes interactive again. */
+body[data-ui-style="ios"].is-ios-idle,
+body[data-ui-style="ios"].is-ios-idle *,
+body[data-ui-style="tvos"].is-tvos-idle,
+body[data-ui-style="tvos"].is-tvos-idle * { cursor: none !important; }
+body[data-ui-style="ios"].is-ios-idle #app,
+body[data-ui-style="ios"].is-ios-idle #app *,
+body[data-ui-style="tvos"].is-tvos-idle #app,
+body[data-ui-style="tvos"].is-tvos-idle #app * { pointer-events: none !important; }
+
+/* Debug outlines use paint-only properties so inspecting the layout cannot
+   change wrapping, word widths or the position of the karaoke masks. */
+body.has-developer-bounds .lyrics-line { outline: 1px dashed #67e8f9a0; }
+body.has-developer-bounds .lyrics-line.is-active { outline: 1px solid #a3e635; }
+body.has-developer-bounds .lyrics-main-text { outline: 1px dashed #fde047b0; }
+body.has-developer-bounds .lyrics-background-text { outline: 1px dashed #f0abfcb0; }
+body.has-developer-bounds :is(.lyrics-word, .lyrics-background-word) { outline: 1px dotted #ffffff55; }
+.developer-overlay[data-corner="top-left"] { top: 44px; right: auto; bottom: auto; left: 12px; transform-origin: left top; }
+.developer-overlay[data-corner="bottom-right"] { top: auto; bottom: 18px; transform-origin: right bottom; }
+.developer-overlay[data-corner="bottom-left"] { top: auto; right: auto; bottom: 18px; left: 12px; transform-origin: left bottom; }
+.developer-overlay[data-frozen="true"]::before { content: 'Frozen\a'; color: #fde047; }

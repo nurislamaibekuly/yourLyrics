@@ -1,0 +1,80 @@
+/* sheetview: iOS 18-style modal sheet. MIT. */
+.sheetview,
+.sheetview__dim {
+  --sheetview-bg: #fff;
+  --sheetview-ink: #000;
+  --sheetview-grabber: rgba(60, 60, 67, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  .sheetview:not([data-theme]) {
+    --sheetview-bg: #1c1c1e;
+    --sheetview-ink: #fff;
+    --sheetview-grabber: rgba(235, 235, 245, .3);
+  }
+}
+
+.sheetview[data-theme="dark"] {
+  --sheetview-bg: #1c1c1e;
+  --sheetview-ink: #fff;
+  --sheetview-grabber: rgba(235, 235, 245, .3);
+}
+
+/* Taps outside the sheet land here; with no scaled page it is also the black shade. */
+.sheetview__hit {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+}
+
+/* Dims the scaled page. Lives inside it, so it picks up the rounded corners. */
+.sheetview__dim {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483000;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sheetview {
+  position: fixed;
+  z-index: 2147483001;
+  top: var(--sheetview-top, 22px);
+  bottom: -80px; /* spare room so a spring overshoot never shows a gap */
+  left: 0;
+  right: 0;
+  width: min(100%, var(--sheetview-max, 640px));
+  margin: 0 auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--sheetview-radius, 12px) var(--sheetview-radius, 12px) 0 0;
+  background: var(--sheetview-bg);
+  color: var(--sheetview-ink);
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, .06), 0 -8px 40px rgba(0, 0, 0, .18);
+  letter-spacing: -.41px;
+  outline: none;
+  will-change: transform;
+}
+
+.sheetview.is-dragging { -webkit-user-select: none; user-select: none; cursor: grabbing; }
+
+.sheetview__grabber {
+  flex: none;
+  width: 36px;
+  height: 5px;
+  margin: 5px auto 0;
+  border-radius: 3px;
+  background: var(--sheetview-grabber);
+}
+
+.sheetview__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 80px; /* matches the bottom overshoot room above */
+}

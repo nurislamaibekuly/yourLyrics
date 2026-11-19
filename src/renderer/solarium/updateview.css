@@ -1,0 +1,184 @@
+.solarium-update-block {
+  margin: 0 18px 22px;
+}
+
+.solarium-sheetview .sheetview__scroll > div > .solarium-update-block:first-of-type {
+  margin-top: 10px;
+}
+
+.solarium-update-card {
+  padding: 20px;
+  border-radius: 26px;
+  background: #fff;
+  color: #000;
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-sheetview:not([data-theme]) .solarium-update-card,
+  .solarium-update-card {
+    background: #2c2c2e;
+    color: #fff;
+  }
+}
+
+.solarium-sheetview[data-theme="light"] .solarium-update-card {
+  background: #fff;
+  color: #000;
+}
+
+.solarium-sheetview[data-theme="dark"] .solarium-update-card {
+  background: #2c2c2e;
+  color: #fff;
+}
+
+.solarium-update-card .update-card__header {
+  gap: 14px;
+  padding: 0;
+}
+
+.solarium-update-card .update-card__icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-update-card .update-card__icon {
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  }
+}
+
+.solarium-update-card .update-card__title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.02em;
+}
+
+.solarium-update-card .update-card__subtitle {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 18px;
+  opacity: 1;
+  color: rgba(60, 60, 67, 0.65);
+}
+
+.solarium-update-card .update-card__notes {
+  padding: 16px 0 0;
+  font-size: 15px;
+  line-height: 21px;
+  color: inherit;
+}
+
+.solarium-update-card .update-card__note + .update-card__note {
+  margin-top: 10px;
+}
+
+.solarium-update-card__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 0.5px solid rgba(60, 60, 67, 0.14);
+}
+
+.solarium-update-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: #007aff;
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.015em;
+  text-align: center;
+  cursor: default;
+}
+
+.solarium-update-pill:hover {
+  filter: brightness(1.06);
+}
+
+.solarium-update-pill:active {
+  background: #007aff;
+  filter: brightness(0.92);
+}
+
+.solarium-update-card .solarium-update-text-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #007aff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+  text-align: center;
+  cursor: default;
+}
+
+.solarium-update-card .solarium-update-text-action + .solarium-update-text-action {
+  border-top: 0;
+}
+
+.solarium-update-card .solarium-update-text-action:hover {
+  background: rgba(120, 120, 128, 0.1);
+}
+
+.solarium-update-card .solarium-update-text-action:active {
+  background: rgba(120, 120, 128, 0.18);
+  opacity: 0.85;
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-sheetview:not([data-theme="light"]) .update-card__subtitle {
+    color: rgba(235, 235, 245, 0.65);
+  }
+
+  .solarium-sheetview:not([data-theme="light"]) .solarium-update-card__actions {
+    border-top-color: rgba(84, 84, 88, 0.48);
+  }
+
+  .solarium-sheetview:not([data-theme="light"]) .solarium-update-pill,
+  .solarium-sheetview:not([data-theme="light"]) .solarium-update-pill:active {
+    background: #0a84ff;
+  }
+
+  .solarium-sheetview:not([data-theme="light"]) .solarium-update-card .solarium-update-text-action {
+    color: #0a84ff;
+  }
+}
+
+.solarium-sheetview[data-theme="dark"] .update-card__subtitle {
+  color: rgba(235, 235, 245, 0.65);
+}
+
+.solarium-sheetview[data-theme="dark"] .solarium-update-card__actions {
+  border-top-color: rgba(84, 84, 88, 0.48);
+}
+
+.solarium-sheetview[data-theme="dark"] .solarium-update-pill,
+.solarium-sheetview[data-theme="dark"] .solarium-update-pill:active {
+  background: #0a84ff;
+}
+
+.solarium-sheetview[data-theme="dark"] .solarium-update-text-action {
+  color: #0a84ff;
+}

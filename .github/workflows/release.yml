@@ -1,0 +1,284 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v1.0.0"
+        required: true
+        type: string
+      publish:
+        description: "Upload the built artifacts to the release repository"
+        required: true
+        type: boolean
+        default: true
+
+# Creates/updates the release in this repository using the built-in GITHUB_TOKEN.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TARGET_REPO: ${{ github.repository }}
+  TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  # The release is created first so every build job can push its own assets
+  # straight to it. Uploading through actions/upload-artifact instead costs
+  # ~420 MB of the account's Actions storage quota per run, and once that quota
+  # is full every run dies at the upload step even though the builds succeeded.
+  prepare:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Create or update the release from notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          notes_args=(--notes "")
+          if [ -s notes.md ]; then
+            notes_args=(--notes-file notes.md)
+          fi
+          if gh release view "$TAG" --repo "$TARGET_REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists in $TARGET_REPO; updating notes."
+            if [ -s notes.md ]; then
+              gh release edit "$TAG" --repo "$TARGET_REPO" --notes-file notes.md
+            fi
+          else
+            gh release create "$TAG" \
+              --repo "$TARGET_REPO" \
+              --title "yourLyrics $TAG" \
+              "${notes_args[@]}"
+          fi
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            os: macos-15
+            arch: arm64
+            build: npm run dist:mac
+            artifact: macos-arm64
+            executable: dist/mac-arm64/yourLyrics.app/Contents/MacOS/yourLyrics
+            electron_cache: ~/Library/Caches/electron
+            builder_cache: ~/Library/Caches/electron-builder
+          - name: macOS x64
+            os: macos-15-intel
+            arch: x64
+            build: npm run dist:mac:x64
+            artifact: macos-x64
+            executable: dist/mac/yourLyrics.app/Contents/MacOS/yourLyrics
+            electron_cache: ~/Library/Caches/electron
+            builder_cache: ~/Library/Caches/electron-builder
+          - name: Windows
+            os: windows-latest
+            arch: x64
+            build: npm run dist:win
+            artifact: windows
+            executable: dist/win-unpacked/yourLyrics.exe
+            electron_cache: ~/AppData/Local/electron/Cache
+            builder_cache: ~/AppData/Local/electron-builder/Cache
+          - name: Linux
+            os: ubuntu-latest
+            arch: x64
+            build: npm run dist:linux
+            artifact: linux
+            executable: dist/linux-unpacked/yourlyrics
+            electron_cache: ~/.cache/electron
+            builder_cache: ~/.cache/electron-builder
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Electron downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ matrix.electron_cache }}
+            ${{ matrix.builder_cache }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-electron-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.arch }}-electron-
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Bytecode must be produced by the same architecture of Electron that
+      # loads it. Packaging a different runtime cannot convert the bytecode.
+      - name: Verify native build architecture
+        shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          node -e "require('node:assert/strict').equal(process.arch, process.env.TARGET_ARCH, 'Build runner must match the packaged architecture')"
+
+      - name: Test packaged startup checks
+        run: npm run test:packaged-startup
+
+      - name: Validate Windows media helper
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $script = (Resolve-Path 'vendor\windows-media\smtc.ps1').Path
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $script,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+
+          $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+          $output = & $powershell -NoLogo -NoProfile -NonInteractive `
+            -ExecutionPolicy Bypass -File $script -Action info 2>&1
+          $output | Write-Host
+          $line = @($output | Where-Object { $_ -like 'SMTC *' }) | Select-Object -First 1
+          if (-not $line) {
+            throw 'The Windows media helper did not return a response.'
+          }
+          $frame = $line.Substring(5) | ConvertFrom-Json
+          if (-not $frame.ok) {
+            throw "The Windows media helper failed: $($frame.error)"
+          }
+
+          $serveOutput = @('{"id":1,"action":"info"}') | & $powershell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $script -Serve 2>&1
+          $serveOutput | Write-Host
+          $serveLine = @($serveOutput | Where-Object { $_ -like 'SMTC *' }) |
+            Select-Object -First 1
+          if (-not $serveLine) {
+            throw 'The Windows media helper serve loop did not respond.'
+          }
+          $serveFrame = $serveLine.Substring(5) | ConvertFrom-Json
+          if (-not $serveFrame.ok) {
+            throw "The Windows media helper serve loop failed: $($serveFrame.error)"
+          }
+          Write-Host "SMTC helper ready (active=$($frame.active))."
+
+      - name: Match package version to tag
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # The bytecode cache from the previous step should make the
+            # beforePack hook a no-op; xvfb covers the recompile path.
+            xvfb-run -a ${{ matrix.build }}
+          else
+            ${{ matrix.build }}
+          fi
+
+      - name: Verify artifacts
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          # Release assets carry the platform in the name so a download list
+          # can be read at a glance: yourLyrics-1.0.0-macos-arm64.zip,
+          # yourLyrics-1.0.0-macos-x64.zip, yourLyrics-1.0.0-windows-x64.exe,
+          # yourLyrics-1.0.0-linux-x64.AppImage.
+          # electron-updater also needs the latest*.yml channel files: without
+          # them every in-app update check 404s before versions are compared.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            ls -lh dist/*.exe
+            test -f "dist/yourLyrics-${VERSION}-windows-x64.exe"
+            test -f dist/latest.yml
+          elif [ "$RUNNER_OS" = "Linux" ]; then
+            ls -lh dist/*.AppImage
+            test -f "dist/yourLyrics-${VERSION}-linux-x64.AppImage"
+            test -f dist/latest-linux.yml
+          else
+            ls -lh dist/*.zip
+            test -f "dist/yourLyrics-${VERSION}-macos-${{ matrix.arch }}.zip"
+            test -f dist/latest-mac.yml
+          fi
+          ls -lh dist/*.yml dist/*.blockmap 2>/dev/null || true
+
+      # Launch the packaged runtime, with its bytecode, fuses and sandboxed
+      # preload intact. File-existence checks cannot catch startup failures.
+      - name: Configure Linux sandbox helper for startup check
+        if: runner.os == 'Linux'
+        run: |
+          # The unpacked app has not gone through an installer. Give Chromium's
+          # sandbox helper the ownership and mode it requires on this runner.
+          sudo chown root:root dist/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 dist/linux-unpacked/chrome-sandbox
+
+      - name: Check packaged startup
+        shell: bash
+        env:
+          PACKAGED_EXECUTABLE: ${{ matrix.executable }}
+          TARGET_ARCH: ${{ matrix.arch }}
+          YOURLYRICS_SMOKE_SOFTWARE_GL: ${{ runner.os == 'Linux' && '1' || '0' }}
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a npm run test:packaged -- "$PACKAGED_EXECUTABLE" "$TARGET_ARCH"
+          else
+            npm run test:packaged -- "$PACKAGED_EXECUTABLE" "$TARGET_ARCH"
+          fi
+
+      # Both Mac jobs produce latest-mac.yml. Concurrent --clobber uploads can
+      # race while creating that shared asset and fail with HTTP 422. Keep a
+      # manifest for each architecture; arm64 alone owns the default channel.
+      # In-app macOS installs are disabled for our unsigned builds.
+      - name: Separate macOS update manifests
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cp dist/latest-mac.yml "dist/latest-mac-${{ matrix.arch }}.yml"
+          if [ "${{ matrix.arch }}" = "x64" ]; then
+            rm dist/latest-mac.yml
+          fi
+
+      - name: Publish to release
+        if: ${{ github.event_name == 'push' || inputs.publish }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          # The latest*.yml / *.blockmap entries are the electron-updater feed:
+          # latest.yml (Windows), latest-linux.yml, latest-mac.yml and the
+          # differential blockmaps. electron-builder writes them next to the
+          # installers even with --publish never; they just never got uploaded.
+          # latest*.yml (not *.yml) so builder-debug.yml stays out.
+          files=(dist/*.zip dist/*.exe dist/*.AppImage dist/latest*.yml dist/*.blockmap)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No release artifacts were built."
+            exit 1
+          fi
+          ls -lh "${files[@]}"
+
+          gh release upload "$TAG" "${files[@]}" \
+            --repo "$TARGET_REPO" \
+            --clobber

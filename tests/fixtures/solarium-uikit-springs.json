@@ -1,0 +1,157 @@
+{
+  "runtime": "iOS 27.2 Simulator",
+  "api": "UIView.animate(withDuration:delay:usingSpringWithDamping:initialSpringVelocity:options:animations:completion:)",
+  "note": "Measured with zero initial velocity and beginFromCurrentState/allowUserInteraction, matching the UIKit call sites. This records UIKit timing parameters, not native iOS 26 visual parity.",
+  "curves": [
+    {
+      "duration": 0.4,
+      "ratio": 0.6,
+      "mass": 1,
+      "stiffness": 760.8571017799819,
+      "damping": 33.100365958145744,
+      "initialVelocity": 0,
+      "samples": [
+        [
+          0,
+          0.0
+        ],
+        [
+          0.125,
+          0.5103403931049728
+        ],
+        [
+          0.25,
+          0.9981831542561415
+        ],
+        [
+          0.5,
+          1.036927214321179
+        ],
+        [
+          0.75,
+          0.991684821514511
+        ]
+      ]
+    },
+    {
+      "duration": 0.6,
+      "ratio": 0.7,
+      "mass": 1,
+      "stiffness": 268.9406768369378,
+      "damping": 22.959175216030694,
+      "initialVelocity": 0,
+      "samples": [
+        [
+          0,
+          0.0
+        ],
+        [
+          0.125,
+          0.41116381191185625
+        ],
+        [
+          0.25,
+          0.860877777396662
+        ],
+        [
+          0.5,
+          1.0411334193435784
+        ],
+        [
+          0.75,
+          1.0017256772576402
+        ]
+      ]
+    },
+    {
+      "duration": 0.5,
+      "ratio": 1,
+      "mass": 1,
+      "stiffness": 341.02371602399535,
+      "damping": 36.93365489761312,
+      "initialVelocity": 0,
+      "samples": [
+        [
+          0,
+          0.0
+        ],
+        [
+          0.125,
+          0.3207514052718248
+        ],
+        [
+          0.25,
+          0.6710675335124674
+        ],
+        [
+          0.5,
+          0.9444771892198766
+        ],
+        [
+          0.75,
+          0.9922109031707254
+        ]
+      ]
+    },
+    {
+      "duration": 0.4,
+      "ratio": 0.7,
+      "mass": 1,
+      "stiffness": 605.1165228831102,
+      "damping": 34.438762824046044,
+      "initialVelocity": 0,
+      "samples": [
+        [
+          0,
+          0.0
+        ],
+        [
+          0.125,
+          0.41116381191185636
+        ],
+        [
+          0.25,
+          0.8608777773966622
+        ],
+        [
+          0.5,
+          1.0411334193435782
+        ],
+        [
+          0.75,
+          1.0017256772576402
+        ]
+      ]
+    },
+    {
+      "duration": 0.5,
+      "ratio": 0.8,
+      "mass": 1,
+      "stiffness": 323.5894880144202,
+      "damping": 28.781749240046477,
+      "initialVelocity": 0,
+      "samples": [
+        [
+          0,
+          0.0
+        ],
+        [
+          0.125,
+          0.3435339698879113
+        ],
+        [
+          0.25,
+          0.7483669944372142
+        ],
+        [
+          0.5,
+          1.009076805354702
+        ],
+        [
+          0.75,
+          1.0075517004062218
+        ]
+      ]
+    }
+  ]
+}

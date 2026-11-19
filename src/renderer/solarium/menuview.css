@@ -1,0 +1,322 @@
+.solarium-menuview {
+  --menuview-bg: rgba(255, 255, 255, .12);
+  --menuview-row: 44px;
+  --menuview-group-gap: 12px;
+  --menuview-ink: #000;
+  --menuview-sep: rgba(0, 0, 0, .08);
+  --menuview-hover: rgba(40, 45, 50, .07);
+  --solarium-rim: rgba(255, 255, 255, .24);
+  --solarium-glass: rgba(255, 255, 255, .3);
+  --solarium-glass-edge: rgba(255, 255, 255, .75);
+  --solarium-shadow-fill: rgba(20, 20, 40, .3);
+  --solarium-rim-hi: rgba(255, 255, 255, .95);
+  --solarium-rim-lo: rgba(255, 255, 255, .25);
+  box-sizing: border-box;
+  isolation: isolate;
+  overflow: visible;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: -.2px;
+  --solarium-menu-shadow: .15;
+  /* When WebGL2 renders the glass, the menu container stays clear so no
+     frosted rectangle shows behind the shader surface, while clipping its
+     children cleanly to the live animated corner radius. */
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, var(--solarium-menu-shadow)),
+    0 2px 8px rgba(0, 0, 0, .08);
+  outline: 0;
+  will-change: transform, opacity;
+  contain: layout style;
+  transform: translateZ(0);
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+.solarium-menuview[data-glass="fallback"] {
+  background: var(--solarium-glass) !important;
+  border: 1px solid var(--solarium-rim) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4) !important;
+  backdrop-filter: blur(20px) saturate(1.4) !important;
+}
+
+.solarium-menuview[data-reduced-transparency="true"] {
+  background: rgb(245, 245, 247) !important;
+  border: 1px solid rgba(0, 0, 0, .12) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.solarium-menuview[data-theme="dark"][data-reduced-transparency="true"] {
+  background: rgb(41, 41, 45) !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-menuview:not([data-theme])[data-reduced-transparency="true"] {
+    background: rgb(41, 41, 45) !important;
+    border: 1px solid rgba(255, 255, 255, .14) !important;
+  }
+}
+
+.solarium-menuview::before,
+.solarium-menuview::after {
+  content: none !important;
+  display: none !important;
+}
+
+.solarium-menuview[data-theme="dark"] {
+  --solarium-menu-shadow: .35;
+  --menuview-bg: rgba(255, 255, 255, .12);
+  --menuview-ink: #fff;
+  --menuview-sep: rgba(255, 255, 255, .12);
+  --menuview-hover: rgba(255, 255, 255, .14);
+  --solarium-rim: rgba(255, 255, 255, .16);
+  --solarium-glass: rgba(80, 80, 92, .36);
+  --solarium-glass-edge: rgba(255, 255, 255, .3);
+  --solarium-shadow-fill: rgba(0, 0, 0, .55);
+  --solarium-rim-hi: rgba(255, 255, 255, .6);
+  --solarium-rim-lo: rgba(255, 255, 255, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-menuview:not([data-theme]) {
+    --solarium-menu-shadow: .35;
+    --menuview-bg: rgba(255, 255, 255, .12);
+    --menuview-ink: #fff;
+    --menuview-sep: rgba(255, 255, 255, .12);
+    --menuview-hover: rgba(255, 255, 255, .08);
+    --solarium-rim: rgba(255, 255, 255, .16);
+    --solarium-glass: rgba(80, 80, 92, .36);
+    --solarium-glass-edge: rgba(255, 255, 255, .3);
+    --solarium-shadow-fill: rgba(0, 0, 0, .55);
+    --solarium-rim-hi: rgba(255, 255, 255, .6);
+    --solarium-rim-lo: rgba(255, 255, 255, .12);
+  }
+}
+
+/* An inset rim stays crisp without adding a second heavy shadow around glass. */
+
+
+/* Content participates in natural measurement, then receives a fixed pixel
+   width and height before the silhouette animates. Labels never reflow. */
+.solarium-menuview__clip {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 1;
+  pointer-events: auto;
+  will-change: border-radius;
+}
+
+.solarium-menuview__content {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: inherit;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  will-change: opacity, transform, filter;
+  backface-visibility: hidden;
+}
+
+
+.solarium-menuview .menuview__item {
+  position: relative;
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 8px 16px;
+  gap: 12px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -.012em;
+  transform-origin: center center;
+  transition:
+    transform .24s cubic-bezier(.22, 1.35, .36, 1),
+    background-color .14s ease,
+    box-shadow .18s ease,
+    opacity .18s ease;
+}
+
+.solarium-menuview .menuview__item.has-multiline { min-height: 58px; }
+
+/* UIMenu.ElementSize: 'small' is the compact row, 'large' the roomy one. */
+.solarium-menuview .menuview__item.is-small {
+  min-height: 34px;
+  padding: 6px 14px;
+  font-size: 15px;
+}
+
+.solarium-menuview .menuview__item.is-large {
+  min-height: 56px;
+  padding: 12px 18px;
+  font-size: 19px;
+}
+
+.solarium-menuview .menuview__label {
+  min-width: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.solarium-menuview .menuview__icon {
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.solarium-menuview .menuview__icon svg { width: 20px; height: 20px; }
+
+/* Only explicit sections get dividers; ordinary actions form one list. */
+.solarium-menuview .menuview__item + .menuview__item { border-top: 0; }
+
+.solarium-menuview .menuview__gap {
+  height: var(--menuview-group-gap);
+  flex-shrink: 0;
+  background: linear-gradient(var(--menuview-sep), var(--menuview-sep)) center / calc(100% - 32px) 1px no-repeat;
+}
+
+.solarium-menuview .menuview__item:hover,
+.solarium-menuview .menuview__item.is-active,
+.solarium-menuview .menuview__item:focus-visible {
+  background:
+    radial-gradient(120px circle at var(--menu-px, 28%) var(--menu-py, 50%), rgba(255, 255, 255, .24), rgba(255, 255, 255, .04) 68%),
+    var(--menuview-hover);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .34),
+    inset 0 0 0 .75px rgba(255, 255, 255, .16);
+}
+
+.solarium-menuview .menuview__item:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -3px;
+}
+
+.solarium-menuview__blur { display: none; }
+.solarium-menuview__shade { background: transparent; }
+
+/* Submenus share the platter rather than stacking another glass surface. */
+.solarium-menuview [hidden] { display: none; }
+
+.solarium-menuview__group:not([hidden]) {
+  padding-inline-start: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.solarium-menuview .menuview__item.is-dimmed { opacity: .48; }
+.solarium-menuview .menuview__item.is-disabled { opacity: .55; }
+.solarium-menuview .menuview__item:active,
+.solarium-menuview .menuview__item.is-pressing {
+  transform: translate3d(0, 0, 0) scale3d(1.015, 1.015, 1);
+  background:
+    radial-gradient(110px circle at var(--menu-px, 28%) var(--menu-py, 50%), rgba(255, 255, 255, .32), rgba(255, 255, 255, .08) 68%),
+    rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  box-shadow:
+    inset 0 0 0 .75px rgba(255, 255, 255, .32),
+    inset 0 1px 0 rgba(255, 255, 255, .36);
+}
+
+.solarium-menuview__content > .solarium-menuview__title {
+  margin-bottom: 4px;
+  border-bottom: .5px solid var(--menuview-sep);
+}
+
+.solarium-menuview__title {
+  padding: 8px 20px;
+  color: var(--menuview-ink);
+  opacity: .65;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.solarium-menuview .has-subtitle {
+  min-height: 58px;
+  padding-block: 11px;
+}
+
+.solarium-menuview__subtitle {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 17px;
+  opacity: .65;
+}
+
+.solarium-menuview__accessory {
+  flex: none;
+  margin-inline-start: auto;
+  min-width: 14px;
+  text-align: center;
+}
+
+.solarium-menuview__chevron {
+  font-size: 22px;
+  transition: transform 180ms ease;
+}
+
+.solarium-menuview [aria-expanded="true"] > .solarium-menuview__chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .solarium-menuview__chevron { transition: none; }
+}
+
+/* ---- liquid morph container ---------------------------------------------- */
+.solarium-menuview > canvas,
+.solarium-menuview__glass {
+  pointer-events: none;
+  will-change: transform;
+  contain: strict;
+  transform: translateZ(0);
+}
+
+/* The trigger copy riding inside the morphing drop during early open. */
+.solarium-menuview__face {
+  position: absolute !important;
+  right: auto !important;
+  bottom: auto !important;
+  box-sizing: border-box;
+  margin: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none;
+  transform-origin: 0 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.solarium-menuview__title {
+  opacity: .65;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .solarium-menuview .menuview__item { transition-duration: .01s !important; }
+}

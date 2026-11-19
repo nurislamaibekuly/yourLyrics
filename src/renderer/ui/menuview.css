@@ -1,0 +1,175 @@
+/* menuview: iOS 18-style pull-down menu. MIT.
+ * Theme with CSS variables, e.g. .menuview { --menuview-bg: ...; }
+ */
+.menuview,
+.menuview__shade {
+  --menuview-z: 1000;
+  --menuview-bg: rgba(250, 250, 252, .74);
+  --menuview-ink: #000;
+  --menuview-danger: #ff3b30;
+  --menuview-sep: rgba(60, 60, 67, .22);
+  --menuview-hover: rgba(60, 60, 67, .14);
+  --menuview-shade: rgba(0, 0, 0, .06);
+}
+
+@media (prefers-color-scheme: dark) {
+  .menuview:not([data-theme]),
+  .menuview__shade:not([data-theme]) {
+    --menuview-bg: rgba(48, 48, 52, .74);
+    --menuview-ink: #fff;
+    --menuview-danger: #ff453a;
+    --menuview-sep: rgba(255, 255, 255, .2);
+    --menuview-hover: rgba(255, 255, 255, .15);
+    --menuview-shade: rgba(0, 0, 0, .28);
+  }
+}
+
+.menuview[data-theme="dark"],
+.menuview__shade[data-theme="dark"] {
+  --menuview-bg: rgba(48, 48, 52, .74);
+  --menuview-ink: #fff;
+  --menuview-danger: #ff453a;
+  --menuview-sep: rgba(255, 255, 255, .2);
+  --menuview-hover: rgba(255, 255, 255, .15);
+  --menuview-shade: rgba(0, 0, 0, .28);
+}
+
+.menuview__shade {
+  position: fixed;
+  inset: 0;
+  z-index: var(--menuview-z);
+  background: var(--menuview-shade);
+}
+
+.menuview {
+  z-index: calc(var(--menuview-z) + 1);
+  overflow: hidden;
+  border-radius: var(--menuview-radius, 14px);
+  background: var(--menuview-bg);
+  color: var(--menuview-ink);
+  -webkit-backdrop-filter: blur(40px) saturate(190%);
+  backdrop-filter: blur(40px) saturate(190%);
+  box-shadow: 0 0 0 .5px var(--menuview-sep), 0 10px 44px rgba(0, 0, 0, .15);
+  letter-spacing: -.41px;
+  -webkit-user-select: none;
+  user-select: none;
+  will-change: transform, opacity;
+}
+
+.menuview__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.menuview__item + .menuview__item { border-top: .5px solid var(--menuview-sep); }
+.menuview__gap + .menuview__item { border-top: 0; }
+.menuview__gap { height: 7px; background: var(--menuview-sep); }
+
+.menuview__item:hover,
+.menuview__item.is-active,
+.menuview__item:focus-visible { background: var(--menuview-hover); outline: none; }
+
+.menuview__item.is-destructive { color: var(--menuview-danger); }
+.menuview__item.is-disabled { opacity: .35; pointer-events: none; }
+
+.menuview__icon { display: inline-flex; flex: none; }
+.menuview__icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.menuview__blur {
+    position: fixed;
+    pointer-events: none;
+    z-index: var(--menuview-z, 1001);
+    opacity: 0;
+    transition: opacity 250ms ease;
+
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+
+    -webkit-mask-image: radial-gradient(
+        ellipse 75% 65% at center,
+        #000 0%,
+        rgba(0, 0, 0, .9) 30%,
+        rgba(0, 0, 0, .6) 55%,
+        rgba(0, 0, 0, .25) 75%,
+        transparent 100%
+    );
+    mask-image: radial-gradient(
+        ellipse 75% 65% at center,
+        #000 0%,
+        rgba(0, 0, 0, .9) 30%,
+        rgba(0, 0, 0, .6) 55%,
+        rgba(0, 0, 0, .25) 75%,
+        transparent 100%
+    );
+}
+
+.menuview__blur::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+
+    -webkit-mask-image: radial-gradient(
+        ellipse 45% 40% at center,
+        #000 0%,
+        rgba(0, 0, 0, .8) 35%,
+        rgba(0, 0, 0, .4) 65%,
+        transparent 100%
+    );
+    mask-image: radial-gradient(
+        ellipse 45% 40% at center,
+        #000 0%,
+        rgba(0, 0, 0, .8) 35%,
+        rgba(0, 0, 0, .4) 65%,
+        transparent 100%
+    );
+}
+
+.menuview__blur::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+
+    -webkit-mask-image: radial-gradient(
+        ellipse 25% 22% at center,
+        #000 0%,
+        rgba(0, 0, 0, .7) 40%,
+        rgba(0, 0, 0, .3) 70%,
+        transparent 100%
+    );
+    mask-image: radial-gradient(
+        ellipse 25% 22% at center,
+        #000 0%,
+        rgba(0, 0, 0, .7) 40%,
+        rgba(0, 0, 0, .3) 70%,
+        transparent 100%
+    );
+}
+
+.menuview__blur.is-active {
+    opacity: 1;
+}

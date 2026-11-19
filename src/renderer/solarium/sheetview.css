@@ -1,0 +1,195 @@
+.solarium-sheetview {
+  --sheetview-bg: #f2f2f7;
+  --sheetview-bg-fade: rgba(242, 242, 247, 0.72);
+  --sheetview-bg-clear: rgba(242, 242, 247, 0);
+  --sheetview-ink: #000;
+  --solarium-sheet-group-bg: #fff;
+  background: var(--sheetview-bg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+.solarium-sheetview__header {
+  position: relative;
+  flex: none;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  height: 64px;
+  padding: 20px 16px 0;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.solarium-sheetview__header::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 92px;
+  background: linear-gradient(
+    to bottom,
+    var(--sheetview-bg) 0%,
+    var(--sheetview-bg-fade) 48%,
+    var(--sheetview-bg-clear) 100%
+  );
+  pointer-events: none;
+}
+
+.solarium-sheetview__title {
+  position: relative;
+  z-index: 1;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: -0.02em;
+  color: var(--sheetview-ink);
+  text-align: center;
+  user-select: none;
+}
+
+.solarium-sheetview__close {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  z-index: 1;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sheetview-ink);
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: default;
+}
+
+.solarium-sheetview__close svg {
+  position: relative;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.solarium-sheetview__scrollwrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 16px,
+    rgba(0, 0, 0, 0.35) 48px,
+    #000 78px,
+    #000 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 16px,
+    rgba(0, 0, 0, 0.35) 48px,
+    #000 78px,
+    #000 100%
+  );
+}
+
+.solarium-sheetview .sheetview__scroll {
+  padding-top: 64px;
+  padding-bottom: 80px;
+  scrollbar-width: none;
+}
+
+.solarium-sheetview .sheetview__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.solarium-sheetview .sheet-heading {
+  display: none;
+}
+
+.solarium-sheetview .sheetview__scroll > div > .sheet-group:first-of-type {
+  margin-top: 10px;
+}
+
+.solarium-sheetview .sheet-group {
+  margin: 0 18px 22px;
+  background: var(--solarium-sheet-group-bg);
+  border: 0;
+  border-radius: 26px;
+}
+
+.solarium-sheetview .sheet-row {
+  min-height: 50px;
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 500;
+  overflow: visible;
+}
+
+.solarium-sheetview .sheet-row + .sheet-row {
+  border-top: 0;
+  position: relative;
+}
+
+.solarium-sheetview .sheet-row + .sheet-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 20px;
+  right: 20px;
+  height: 0.5px;
+  background: rgba(60, 60, 67, 0.12);
+  pointer-events: none;
+}
+
+.solarium-slider-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  .solarium-sheetview:not([data-theme]) {
+    --sheetview-bg: #1c1c1e;
+    --sheetview-bg-fade: rgba(28, 28, 30, 0.72);
+    --sheetview-bg-clear: rgba(28, 28, 30, 0);
+    --sheetview-ink: #fff;
+    --solarium-sheet-group-bg: #2c2c2e;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42);
+  }
+
+  .solarium-sheetview:not([data-theme]) .sheet-heading {
+    color: rgba(235, 235, 245, 0.6);
+  }
+
+  .solarium-sheetview:not([data-theme]) .sheet-row + .sheet-row::before {
+    background: rgba(84, 84, 88, 0.48);
+  }
+}
+
+.solarium-sheetview[data-theme="dark"] {
+  --sheetview-bg: #1c1c1e;
+  --sheetview-bg-fade: rgba(28, 28, 30, 0.72);
+  --sheetview-bg-clear: rgba(28, 28, 30, 0);
+  --sheetview-ink: #fff;
+  --solarium-sheet-group-bg: #2c2c2e;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42);
+}
+
+.solarium-sheetview[data-theme="dark"] .sheet-heading {
+  color: rgba(235, 235, 245, 0.6);
+}
+
+.solarium-sheetview[data-theme="dark"] .sheet-row + .sheet-row::before {
+  background: rgba(84, 84, 88, 0.48);
+}

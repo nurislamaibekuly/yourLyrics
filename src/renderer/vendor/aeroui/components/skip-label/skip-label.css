@@ -1,0 +1,33 @@
+/* AeroUI animated skip label (MIT). See ../../LICENSE. */
+.aero-skip {
+  --skip-size: 30px;
+  position: relative;
+  display: inline-block;
+  width: calc(var(--skip-size) * 1.6);
+  height: var(--skip-size);
+}
+
+.aero-skip--backward { transform: scaleX(-1); }
+
+.aero-skip-arrow {
+  position: absolute;
+  top: 0;
+  left: 18.75%;
+  width: 31.25%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: left center;
+}
+
+.aero-skip-arrow[data-phase$='right'] {
+  left: 50%;
+  transform-origin: right center;
+}
+
+.aero-skip-arrow[data-phase^='enter'] { opacity: 0; }
+.aero-skip-arrow svg { display: block; width: 100%; height: auto; }
+
+/* Promote only while moving; keep idle controls inexpensive to composite. */
+.aero-skip--animating .aero-skip-arrow { will-change: transform, opacity; }
