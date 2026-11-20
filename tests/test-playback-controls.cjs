@@ -370,7 +370,7 @@ async function run() {
     await chooseUiStyle('tvOS');
     await until(`document.querySelector('.title').classList.contains('frost-ready')`);
     check('tvOS starts with independent text size, spacing and blur', await js(`
-      document.documentElement.style.getPropertyValue('--lyrics-font-base') === '5.83vh' &&
+      document.documentElement.style.getPropertyValue('--lyrics-font-base') === '5vh' &&
       document.documentElement.style.getPropertyValue('--lyrics-spacing-scale') === '1' &&
       !document.querySelector('.lyrics').classList.contains('is-line-blur-off')
     `));
@@ -378,7 +378,7 @@ async function run() {
     await setStyleSetting('Line spacing', 1.2);
     await setStyleSetting('Line blur', true);
     // Restore the default TV geometry for the existing reference checks.
-    await setStyleSetting('Text size', 5.83);
+    await setStyleSetting('Text size', 5);
     await setStyleSetting('Line spacing', 1);
 
     const beforePolish = media.getNowPlaying();
@@ -676,7 +676,7 @@ async function run() {
       document.querySelector('.lyrics').classList.contains('is-line-blur-off') &&
       Array.from(document.querySelectorAll('.sheet-row')).find(row => row.firstElementChild?.textContent === 'Text size').querySelector('input').value === '4.4'
     `));
-    await setStyleSetting('Text size', 5.83);
+    await setStyleSetting('Text size', 5);
     await setStyleSetting('Line spacing', 1);
     await setStyleSetting('Line blur', true);
 

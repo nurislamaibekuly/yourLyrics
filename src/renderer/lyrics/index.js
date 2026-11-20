@@ -615,7 +615,7 @@ class BlurValue {
 // position in px, measured inside that word's own box); the mask gradient
 // itself stays on timed rows during deactivation, while bright and dim alpha
 // converge. Removing it at the class change would flash unsung words bright.
-const wordFadeWidth = 0.625;
+const wordFadeWidth = 0.4;
 
 // Keep a separate mask coordinate system for each visual row. A wrapped word
 // can contribute glyphs to several rows, so its bounding box alone cannot
@@ -746,6 +746,9 @@ function springProgress(time, response) {
 }
 
 const cjkPattern = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/;
+// Matches LyricsBlossom's CJK range check (0x1001b7820): Han + Kana, excluding Hangul
+// so space-delimited Korean syllables still group into whole words for emphasis.
+const hanKanaPattern = /[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff]/;
 
 // Right-to-left scripts: Hebrew through Arabic, plus the presentation forms a
 // shaped run is drawn from. A lyric is laid out in the script it is written in
@@ -819,7 +822,7 @@ function chunkLyricWords(words) {
   for (const word of words) {
     const text = word.text ?? '';
     const blank = text.trim().length === 0;
-    const cjk = cjkPattern.test(text);
+    const cjk = hanKanaPattern.test(text);
 
     if (blank || cjk || /^\s/.test(text)) {
       flush();
@@ -906,6 +909,7 @@ export class LyricsView {
     this.fillTails = new Map();
     this.fillGeos = new Map();
     this.backgroundFillGeos = new Map();
+    this.metricsGen = 0;
     this.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.interactionEnabled = true;
     this.scrollOffset = 0;
@@ -949,9 +953,15 @@ export class LyricsView {
         this.positionTrack();
       });
     };
-    this.resizeObserver = new ResizeObserver(() => this.schedulePositionTrack());
+    this.resizeObserver = new ResizeObserver(() => {
+      this.metricsGen += 1;
+      this.schedulePositionTrack();
+    });
     this.resizeObserver.observe(this.track);
-    window.addEventListener('resize', this.schedulePositionTrack);
+    window.addEventListener('resize', () => {
+      this.metricsGen += 1;
+      this.schedulePositionTrack();
+    });
     this.clear();
   }
 
@@ -1336,6 +1346,7 @@ export class LyricsView {
   // every word in it, so the cache has to be dropped explicitly. The next
   // frame measures again; the tracked row height re-anchors via the observer.
   refreshMetrics() {
+    this.metricsGen += 1;
     this.fillGeos.clear();
     this.backgroundFillGeos.clear();
     for (const row of this.wordElements) {
@@ -1655,9 +1666,9 @@ export class LyricsView {
         cjk,
         emphasis: 1,
         start: merged.time,
-        scaleDelta: cjk ? 0 : 0.14 * ramp,
-        liftExtra: cjk ? 0 : 1.5 * ramp,
-        glow: cjk ? 0 : 0.7 * (Math.min(1.5, Math.max(1, duration)) - 1),
+        scaleDelta: 0.14 * ramp,
+        liftExtra: 1.5 * ramp,
+        glow: 0.7 * (Math.min(1.5, Math.max(1, duration)) - 1),
         glowOff: perCharDelay * anchor + hold,
         spanDuration: Math.max(hold + response * 2, cjk ? 2.5 : 0),
         hold,
@@ -2119,15 +2130,14 @@ export class LyricsView {
       return null;
     }
 
-    const lineW = lineElement.offsetWidth;
     const cached = this.fillGeos.get(index);
-    if (cached && cached.lineW === lineW && cached.count === words.length) {
+    if (cached && cached.gen === this.metricsGen && cached.count === words.length) {
       return cached;
     }
 
     const motions = this.wordMotions[index] ?? [];
     const geo = {
-      index, lineW, count: words.length,
+      index, gen: this.metricsGen, count: words.length,
       ...measureFillGeometry(lineElement, wordElements, motions)
     };
     this.fillGeos.set(index, geo);
@@ -2403,9 +2413,8 @@ export class LyricsView {
       return null;
     }
 
-    const lineW = lineElement.offsetWidth;
     const cached = this.backgroundFillGeos.get(index);
-    if (cached && cached.lineW === lineW && cached.count === words.length) {
+    if (cached && cached.gen === this.metricsGen && cached.count === words.length) {
       return cached;
     }
 
@@ -2421,7 +2430,7 @@ export class LyricsView {
     } finally {
       if (background) background.style.transform = savedBlockTransform ?? '';
     }
-    const geo = { index, lineW, count: words.length, ...geometry };
+    const geo = { index, gen: this.metricsGen, count: words.length, ...geometry };
     this.backgroundFillGeos.set(index, geo);
     for (const el of wordElements) {
       el.__fill = undefined;

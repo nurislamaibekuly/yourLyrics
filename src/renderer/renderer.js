@@ -270,7 +270,7 @@ let animatedCovers = true; // settings toggle: motion artwork covers
 let catalogArtworkFallback = true;
 let tapToSeek = true; // settings toggle: tap a lyric line to seek
 let bleedArtwork = false; // settings toggle: Immersive artwork, full-column cover with gradient mask (iPhone AM style)
-let lyricsFontVh = 5.83; // settings: lyrics text size in vh units
+let lyricsFontVh = 5; // settings: lyrics text size in vh units
 let lyricsSpacing = 1;
 let stylePreferences = readStylePreferences();
 let lyricsOffsetMs = 0; // settings: lyrics clock offset against the audio, in ms
@@ -664,13 +664,13 @@ function updateFrostedText(now = performance.now()) {
   frostedDirty = false;
   const backgroundMoving = backdropPlaying ||
     (artworkVideo.classList.contains('is-visible') && !artworkVideo.paused);
-  if (wasDirty || frostedPixelsDirty || (backgroundMoving && now - lastFrostedPaintAt >= 100)) {
+  if (wasDirty || frostedPixelsDirty || (backgroundMoving && now - lastFrostedPaintAt >= 150)) {
     frostedPixelsDirty = false;
     lastFrostedPaintAt = now;
     frostedPixels.paint();
-  }
-  if (!solariumDisabledForSession && (wasDirty || backgroundMoving)) {
-    requestSolariumGlassDraw();
+    if (!solariumDisabledForSession) {
+      requestSolariumGlassDraw();
+    }
   }
 }
 
@@ -682,6 +682,7 @@ window.addEventListener('resize', () => {
   frostedDirty = true;
   frostedResizePending = true;
   refreshSolariumMetadataGeometry();
+  refreshLyricsMetrics();
   lyricsMotionUntil = performance.now() + 1500;
   scheduleTick();
   // iPadOS swaps between its portrait and two-column layouts as the window
@@ -2406,9 +2407,9 @@ function createBackdropEngine() {
     seed: String(Math.floor(Math.random() * 5)),
     // 'auto' resolves to the isBehindLyrics switch above, so the lyrics
     // toggle alone picks between the lyrics look and the resting one.
-    // Run the mesh at 60 fps so backdrop motion and audio energy pulses match
-    // the lyric compositor rate.
-    parameters: { motion: 'auto', framesPerSecond: 60 },
+    // Cap the ambient mesh at 30 fps and 0.35 renderScale so MacBook Air/Pro
+    // GPUs keep headroom for the 60 fps lyric compositor and Liquid Glass.
+    parameters: { motion: 'auto', framesPerSecond: 30, renderScale: 0.35 },
     // The iOS layout is portrait by design, so its backdrop keeps the
     // portrait mesh even when the window is resized wider than it is tall.
     // iPadOS lays out in two columns when wide, so it uses the wide mesh.

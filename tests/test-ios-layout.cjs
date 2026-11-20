@@ -189,7 +189,7 @@ async function run() {
         preserved:window.__lyricNode === document.querySelector('.lyrics-track') && window.__backdropNode === document.querySelector('.backdrop') };
     })()`);
     assert.equal(geometry.preserved, true, 'Both renderers retain their live nodes');
-    assert.ok(Math.abs(geometry.fontRatio - Math.min(desktopStyle.fontRatio * 0.82, 0.096 * geometry.width / geometry.height)) < .0002, 'Portrait lyric size scales cleanly from desktop lyric size');
+    assert.ok(Math.abs(geometry.fontRatio - Math.min(desktopStyle.fontRatio, 0.078 * geometry.width / geometry.height)) < .0002, 'Portrait lyric size scales cleanly from desktop lyric size');
     assert.equal(geometry.weight, desktopStyle.weight, 'Portrait keeps the existing lyric weight');
     assert.equal(geometry.transition, desktopStyle.transition, 'Portrait keeps the existing artwork animation');
     const checkAnchor = async label => {

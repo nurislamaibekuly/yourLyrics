@@ -4,7 +4,7 @@ export function readStylePreferences(saved = {}) {
   for (const style of ['macos', 'tvos']) {
     const profile = saved.stylePreferences?.[style] || {};
     profiles[style] = {
-      textSize: clamp(profile.textSize, 3.5, 8, clamp(saved.lyricsFontVh, 3.5, 8, 5.83)),
+      textSize: clamp(profile.textSize, 3.5, 8, clamp(saved.lyricsFontVh, 3.5, 8, 5)),
       spacing: clamp(profile.spacing, .5, 1.8, 1),
       lineBlur: typeof profile.lineBlur === 'boolean' ? profile.lineBlur : saved.lineBlur !== false
     };

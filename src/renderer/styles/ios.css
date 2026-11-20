@@ -54,7 +54,7 @@ body[data-ui-style="ios"] {
   /* Portrait spans ~80vw rather than a desktop column, so scale the base
      lyric size to ~82% (capped at 9.6vw) so portrait lines fill the column
      proportionally without wrapping short phrases onto three rows. */
-  --lyrics-font-size: min(calc(var(--lyrics-font-base, 5.83vh) * 0.82), 9.6vw);
+  --lyrics-font-size: min(var(--lyrics-font-base, 5vh), 7.8vw);
   --lyrics-line-height: 1.18;
   --lyrics-line-spacing: calc(var(--lyrics-font-size) * 0.72 * var(--lyrics-spacing-scale, 1));
   /* Text top to text top between two rows. The top fade is this long, so the
@@ -191,16 +191,16 @@ body[data-ui-style="ios"] .lyrics-mask {
      Keep the current row fully opaque from its anchor onward. */
   -webkit-mask-image: linear-gradient(to bottom,
       transparent 0%,
-      transparent calc(var(--ios-lyrics-clip-top) - 12px),
-      #000 calc(26.5vh + var(--lyrics-anchor-padding) + 12px),
+      transparent calc(var(--ios-lyrics-clip-top) + 8px),
+      #000 calc(26.5vh + var(--lyrics-anchor-padding) + 4px),
       #000 56vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 70vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 88vh,
       transparent 100vh);
   mask-image: linear-gradient(to bottom,
       transparent 0%,
-      transparent calc(var(--ios-lyrics-clip-top) - 12px),
-      #000 calc(26.5vh + var(--lyrics-anchor-padding) + 12px),
+      transparent calc(var(--ios-lyrics-clip-top) + 8px),
+      #000 calc(26.5vh + var(--lyrics-anchor-padding) + 4px),
       #000 56vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 70vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 88vh,
@@ -576,7 +576,7 @@ body[data-ui-variant="ipados"] .volume-slider-fill {
    32/48 background vocals, 22/48 credits), wider lyric block spacing, and a
    larger rounded-square lyrics toggle. */
 body[data-ui-variant="ipados"] {
-  --lyrics-font-size: calc(var(--lyrics-font-base, 5.83vh) * 1.242);
+  --lyrics-font-size: calc(var(--lyrics-font-base, 5vh) * 1.242);
   --lyrics-font-weight: var(--ipados-font-weight, 700);
   --lyrics-line-height: 1.0833;
   --lyrics-background-font-size: 0.667em;
