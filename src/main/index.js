@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, nativeImage, nativeTheme, ipcMain, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, ClipboardItem, dialog, nativeImage, nativeTheme, ipcMain, shell, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { createWindowStyleController } = require('./window/window-style');
@@ -334,6 +334,18 @@ function registerCacheIpc() {
     shell.openPath(app.getPath('userData'))
   );
 
+  ipcMain.handle('app:open-external', (_event, rawUrl) => {
+    if (typeof rawUrl !== 'string') return false;
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol !== 'https:') return false;
+      shell.openExternal(parsed.href).catch(() => {});
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
   ipcMain.handle('cache:clear', async () => {
     for (const directory of cacheDirectories()) {
       try {
@@ -349,6 +361,51 @@ function registerCacheIpc() {
   });
 }
 
+function registerShareIpc() {
+  const decodePng = dataUrl => {
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,')) {
+      return null;
+    }
+    const image = nativeImage.createFromDataURL(dataUrl);
+    return image.isEmpty() ? null : image;
+  };
+
+  ipcMain.handle('share:copy-image', async (_event, dataUrl) => {
+    const image = decodePng(dataUrl);
+    if (!image) return { ok: false, error: 'invalid_image' };
+    if (typeof clipboard.write === 'function' && typeof ClipboardItem === 'function') {
+      const pngBlob = new Blob([image.toPNG()], { type: 'image/png' });
+      await clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      return { ok: true };
+    }
+    if (typeof clipboard.writeImage === 'function') {
+      clipboard.writeImage(image);
+      return { ok: true };
+    }
+    return { ok: false, error: 'clipboard_unavailable' };
+  });
+
+  ipcMain.handle('share:save-image', async (event, dataUrl, suggestedName) => {
+    const image = decodePng(dataUrl);
+    if (!image) return { ok: false, error: 'invalid_image' };
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const baseName = typeof suggestedName === 'string' && suggestedName.trim()
+      ? path.basename(suggestedName.trim())
+      : 'yourLyrics.png';
+    const safeName = baseName.toLowerCase().endsWith('.png') ? baseName : `${baseName}.png`;
+    const defaultPath = path.join(app.getPath('pictures'), safeName);
+    const { canceled, filePath } = await dialog.showSaveDialog(win || undefined, {
+      defaultPath,
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    });
+    if (canceled || !filePath) {
+      return { ok: false, canceled: true };
+    }
+    await fs.writeFile(filePath, image.toPNG());
+    return { ok: true, filePath };
+  });
+}
+
 function registerAppIpc() {
   ipcMain.handle('app:relaunch', () => {
     app.relaunch();
@@ -360,6 +417,7 @@ function registerAppIpc() {
 app.whenReady().then(() => {
   applyAppIcon();
   registerAppIpc();
+  registerShareIpc();
   registerNowPlayingIpc(mediaProvider?.refreshNowPlaying);
   registerLyricsIpc();
   registerAnimatedArtIpc();

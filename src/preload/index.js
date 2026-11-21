@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('app', {
   platform: process.platform,
   relaunch: () => ipcRenderer.invoke('app:relaunch'),
+  openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
@@ -163,5 +164,9 @@ contextBridge.exposeInMainWorld('app', {
       }
       ipcRenderer.on('updates:failed', (_event, payload) => callback(payload));
     }
+  },
+  share: {
+    copyImage: (dataUrl) => ipcRenderer.invoke('share:copy-image', dataUrl),
+    saveImage: (dataUrl, suggestedName) => ipcRenderer.invoke('share:save-image', dataUrl, suggestedName)
   }
 });

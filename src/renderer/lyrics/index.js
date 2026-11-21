@@ -866,10 +866,12 @@ function shouldEmphasize(word) {
 }
 
 export class LyricsView {
-  constructor(element, onSeek = null) {
+  constructor(element, onSeek = null, { onLineHold = null, onCreditClick = null } = {}) {
     this.element = element;
     this.track = element.querySelector('.lyrics-track');
     this.onSeek = typeof onSeek === 'function' ? onSeek : null;
+    this.onLineHold = typeof onLineHold === 'function' ? onLineHold : null;
+    this.onCreditClick = typeof onCreditClick === 'function' ? onCreditClick : null;
     this.hoverIndex = -1;
     this.hoverElement = document.createElement('div');
     this.hoverElement.className = 'lyrics-line-hover';
@@ -880,6 +882,9 @@ export class LyricsView {
     this.lastInteractionTime = 0;
     this.pressedIndex = -1;
     this.pressedPointer = null;
+    this.holdTimer = 0;
+    this.holdStartX = 0;
+    this.holdStartY = 0;
     this.cancelledClickIndex = -1;
     this.lines = [];
     this.hasWordTiming = false;
@@ -930,6 +935,14 @@ export class LyricsView {
       this.setReadability(false);
       this.setLineHover(-1);
       this.releaseLinePress(true);
+    });
+    window.addEventListener('pointermove', event => {
+      if (this.holdTimer && event.pointerId === this.pressedPointer) {
+        if (Math.hypot(event.clientX - this.holdStartX, event.clientY - this.holdStartY) > 10) {
+          clearTimeout(this.holdTimer);
+          this.holdTimer = 0;
+        }
+      }
     });
     window.addEventListener('pointerup', event => this.releaseLinePress(false, event));
     window.addEventListener('pointercancel', event => this.releaseLinePress(true, event));
@@ -1029,6 +1042,17 @@ export class LyricsView {
     this.pressedIndex = index;
     this.pressedPointer = event.pointerId;
     this.pressedPointerType = event.pointerType;
+    this.holdStartX = event.clientX;
+    this.holdStartY = event.clientY;
+    if (this.onLineHold) {
+      this.holdTimer = window.setTimeout(() => {
+        this.holdTimer = 0;
+        if (this.pressedIndex !== index) return;
+        this.cancelledClickIndex = index;
+        this.releaseLinePress(true);
+        this.onLineHold(index, this.lines[index], this.lineElements[index]);
+      }, 420);
+    }
     this.setLineHover(index);
     const spring = this.lineStates[index].press;
     spring.configure(pressSpring.stiffness, pressSpring.damping, pressSpring.mass);
@@ -1038,6 +1062,10 @@ export class LyricsView {
   }
 
   releaseLinePress(cancelled = false, event = null, immediate = false) {
+    if (this.holdTimer && (!event || event.pointerId === this.pressedPointer)) {
+      clearTimeout(this.holdTimer);
+      this.holdTimer = 0;
+    }
     if (this.pressedIndex < 0 || (event && event.pointerId !== this.pressedPointer)) return;
     const index = this.pressedIndex;
     this.pressedIndex = -1;
@@ -1740,11 +1768,12 @@ export class LyricsView {
       const time = Math.max(...this.lines.map(line =>
         Number.isFinite(line.end) ? line.end : line.time + 5
       )) + 0.001;
-      for (const [label, names] of [
-        ['Written by:', lines.credits.writers], ['Synced by:', lines.credits.syncers]
+      for (const [label, names, creditUrl] of [
+        ['Written by:', lines.credits.writers, ''],
+        ['Synced by:', lines.credits.syncers, lines.credits.syncerUrl || '']
       ]) {
         if (names?.length) this.lines.push({
-          time, text: names.join(', '), creditLabel: label, isCredit: true
+          time, text: names.join(', '), creditLabel: label, isCredit: true, creditUrl
         });
       }
     }
@@ -1806,6 +1835,10 @@ export class LyricsView {
           this.cancelledClickIndex = -1;
           return;
         }
+        if (line.isCredit && line.creditUrl && this.onCreditClick) {
+          this.onCreditClick(line.creditUrl);
+          return;
+        }
         if (this.canSeekLine(index)) {
           this.endManualScroll();
           this.onSeek(line.time);
@@ -1827,6 +1860,7 @@ export class LyricsView {
       });
       if (line.isCredit) {
         element.classList.add('is-credit');
+        if (line.creditUrl) element.style.cursor = 'pointer';
         const label = document.createElement('strong');
         label.textContent = line.creditLabel;
         main.append(label, document.createTextNode(` ${line.text}`));
@@ -2687,15 +2721,21 @@ export class LyricsView {
             this.lines[index].time < this.boundaryEnds[index - 1]
           ? 1
           : 0;
-      // A right-to-left line already sits on the right edge, so the answering
-      // voice must not be pushed over to the left: Arabic and Hebrew duets
-      // keep every line right-aligned.
+      // In LTR, the first voice sits left and the answering voice sits right.
+      // In RTL (Arabic, Hebrew), the first voice sits right and the answering
+      // voice sits left.
       const element = this.lineElements[index];
-      const isRtl = element.dir === 'rtl';
       element.classList.toggle(
         'is-duet',
-        !this.lines[index].isCredit && !isRtl && side % 2 === 1
+        !this.lines[index].isCredit && side % 2 === 1
       );
+    }
+
+    for (const interlude of this.interludes) {
+      const next = this.lineElements[interlude.before];
+      const isRightAligned =
+        Boolean(next) && (next.dir === 'rtl') !== next.classList.contains('is-duet');
+      interlude.element.classList.toggle('is-right', isRightAligned);
     }
   }
 
@@ -2881,17 +2921,24 @@ export class LyricsView {
     const params = options.scrolling
       ? scrollSpring
       : dynamicParams;
+    const prevTarget = this.lineStates[0]?.y.target ?? target;
     const stagger =
       !this.reduceMotion.matches &&
       !urgentMovement &&
       interlude < 0 &&
       !options.initial &&
-      !options.seek &&
+      !options.scrolling &&
       options.stagger !== false;
+    const reverseStagger = stagger && Boolean(options.seek) && target > prevTarget + 1;
+    const viewportHeight = reverseStagger
+      ? (this.element.clientHeight || window.innerHeight || 0)
+      : 0;
     let delay = 0;
     const baseDelay = stagger ? lineDelay : 0;
 
-    for (let index = 0; index < this.lineStates.length; index += 1) {
+    const count = this.lineStates.length;
+    for (let step = 0; step < count; step += 1) {
+      const index = reverseStagger ? count - 1 - step : step;
       const state = this.lineStates[index];
       const line = this.lineElements[index];
       const scaleTarget = this.targetScaleForLine(index);
@@ -2929,7 +2976,7 @@ export class LyricsView {
             lineScaleParams.damping,
             lineScaleParams.mass
           );
-          state.scale.moveTo(scaleTarget, delay);
+          state.scale.moveTo(scaleTarget, options.seek ? 0 : delay);
         }
       }
       // Text alpha is independent of the row cascade. A timed line exposes
@@ -2956,15 +3003,21 @@ export class LyricsView {
       // neither a row's stagger nor its urgency changes the 120ms duration.
       state.blur.moveTo(blurTarget);
       if (stagger) {
-        const bottomCorrection = backgroundState && !backgroundState.isBefore
-          ? (backgroundState.isActive ? backgroundState.height : 0) - backgroundState.layoutHeight
-          : 0;
-        const lineBottom =
-          line.offsetTop + target + state.backgroundOffset + line.offsetHeight + bottomCorrection;
-        if (lineBottom >= 0) {
-          // Apple Music holds the stagger constant: the top visible line
-          // starts at 0, then every following line starts 50 ms later.
-          delay += baseDelay;
+        const lineTop = line.offsetTop + target + state.backgroundOffset;
+        if (reverseStagger) {
+          if (lineTop <= viewportHeight) {
+            delay += baseDelay;
+          }
+        } else {
+          const bottomCorrection = backgroundState && !backgroundState.isBefore
+            ? (backgroundState.isActive ? backgroundState.height : 0) - backgroundState.layoutHeight
+            : 0;
+          const lineBottom = lineTop + line.offsetHeight + bottomCorrection;
+          if (lineBottom >= 0) {
+            // Apple Music holds the stagger constant: the top visible line
+            // starts at 0, then every following line starts 50 ms later.
+            delay += baseDelay;
+          }
         }
       }
       this.bindCompletedFade(index);
@@ -3084,8 +3137,10 @@ export class LyricsView {
     const press = state.press?.value ?? 1;
     const scale = Math.round(focusScale * press * 100000) / 100000;
     // Press around the row's centre while focus scaling keeps its reading edge.
+    const isRightOrigin =
+      (state.element.dir === 'rtl') !== state.element.classList.contains('is-duet');
     const pressX = press === 1 ? 0 : state.element.offsetWidth * 0.5 *
-      focusScale * (1 - press) * (state.element.classList.contains('is-duet') ? -1 : 1);
+      focusScale * (1 - press) * (isRightOrigin ? -1 : 1);
     if (force || y !== state.lastY || scale !== state.lastScale || pressX !== state.lastPressX) {
       state.lastPressX = pressX;
       state.lastY = y;

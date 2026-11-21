@@ -518,14 +518,18 @@ function lyricsFormat(text, fileName) {
   return 'lrc';
 }
 
-export function parseLyrics(text, fileName = '', communityAuthor = '') {
+export function parseLyrics(text, fileName = '', communityAuthor = '', communityAuthorUrl = '') {
   const source = stripBom(text);
   const format = lyricsFormat(source, fileName);
   const lines = format === 'ttml' ? parseTtml(source)
     : format === 'qrc' ? parseQrc(source) : parseLrc(source);
   if (typeof communityAuthor === 'string' && communityAuthor.trim() &&
       !lines.credits?.syncers.length) {
-    lines.credits = { writers: lines.credits?.writers ?? [], syncers: [communityAuthor.trim()] };
+    lines.credits = {
+      writers: lines.credits?.writers ?? [],
+      syncers: [communityAuthor.trim()],
+      syncerUrl: typeof communityAuthorUrl === 'string' ? communityAuthorUrl.trim() : ''
+    };
   }
   return lines;
 }

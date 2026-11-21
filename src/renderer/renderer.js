@@ -8,6 +8,7 @@ import { Backdrop as ClassicBackdrop } from './vendor/tsl-backdrop/backdrop.js';
 import { createPlayerPolish } from './player/player-polish.js';
 import { readStylePreferences } from './player/style-preferences.js';
 import { LyricsView, parseLyrics } from './lyrics/index.js';
+import { generateShareLyricsCard } from './lyrics/share-image.js';
 import { PlaybackClock } from './player/playback-clock.js';
 import { createPlaybackControls } from './player/playback-controls.js';
 import { createDeveloperMode, setDeveloperVisibility } from './ui/developer-mode.js';
@@ -304,6 +305,8 @@ let lyricsRenderedContent = '';
 let lyricsGeneration = 0;
 let lyricsSearchGeneration = 0;
 let syncedLyricsSource = '';
+let syncedLyricsSyncer = '';
+let syncedLyricsSyncerUrl = '';
 // Duration corrections arrive after the first now-playing event often enough
 // that a one-second key would restart the same lookup. Keep the request
 // identity separate and tolerate small corrections instead.
@@ -339,7 +342,10 @@ function seekToLyric(lyricSeconds) {
   render();
 }
 
-const lyricsView = new LyricsView(lyricsElement, seekToLyric);
+const lyricsView = new LyricsView(lyricsElement, seekToLyric, {
+  onLineHold: openShareLyricsSheet,
+  onCreditClick: url => window.app?.openExternal?.(url),
+});
 const developerOverlay = document.createElement('div');
 developerOverlay.className = 'developer-overlay';
 // Frequently changing telemetry should not interrupt screen reader speech.
@@ -1634,11 +1640,15 @@ function lyricsSourceLabel(source) {
   const labels = {
     lyricsflow: 'LyricsFlow',
     'lyricsflow-community': 'LyricsFlow Community',
-    betterlyrics: 'Better Lyrics',
+    betterlyrics: 'Unison (Better Lyrics)',
     'betterlyrics-qq': 'Better Lyrics QQ',
+    unison: 'Unison (Better Lyrics)',
     lrclib: 'LRCLib',
     'amll-ttml-db': 'AMLL TTML DB'
   };
+  if (typeof source === 'string' && /^liriqo\s*(?:·|\()\s*unison\b/i.test(source.trim())) {
+    return 'Unison (Better Lyrics)';
+  }
   return labels[source] || source || 'Unavailable';
 }
 
@@ -1656,6 +1666,8 @@ function setLocalLyrics(lines, name) {
     lines
   };
   syncedLyricsSource = '';
+  syncedLyricsSyncer = '';
+  syncedLyricsSyncerUrl = '';
   lyricsRequestKey = lyricsIdentityFor(state);
   lyricsRequestDuration = state.durationSeconds;
   lyricsGeneration += 1;
@@ -1673,6 +1685,8 @@ function updateLyrics() {
   if (localLyrics && localLyrics.identity !== key) {
     localLyrics = null;
     syncedLyricsSource = '';
+  syncedLyricsSyncer = '';
+  syncedLyricsSyncerUrl = '';
     lyricsElement.setAttribute('aria-label', 'Lyrics');
   }
 
@@ -1703,6 +1717,8 @@ function updateLyrics() {
     lyricsRenderedIdentity = '';
     lyricsRenderedContent = '';
     syncedLyricsSource = '';
+  syncedLyricsSyncer = '';
+  syncedLyricsSyncerUrl = '';
   }
   syncBackdropPlayback();
   setLyricsLoading(false);
@@ -1726,13 +1742,16 @@ function updateLyrics() {
       return;
     }
     syncedLyricsSource = lyricsSourceLabel(payload.source);
+    const parsed = parseLyrics(payload.text, '', payload.communityAuthor, payload.communityAuthorUrl);
+    syncedLyricsSyncer = parsed.credits?.syncers?.join(', ') || payload.communityAuthor || '';
+    syncedLyricsSyncerUrl = parsed.credits?.syncerUrl || payload.communityAuthorUrl || '';
     refreshLyricsSheetSource();
-    const content = JSON.stringify([payload.text, payload.communityAuthor]);
+    const content = JSON.stringify([payload.text, payload.communityAuthor, payload.communityAuthorUrl]);
     if (key === lyricsRenderedIdentity && content === lyricsRenderedContent) return;
     lyricsRenderedIdentity = key;
     lyricsRenderedContent = content;
     lyricsView.setLyrics(
-      parseLyrics(payload.text, '', payload.communityAuthor),
+      parsed,
       lyricsClockPosition(),
       state.durationSeconds,
       state.playing
@@ -1742,6 +1761,8 @@ function updateLyrics() {
   }).catch(() => {
     if (generation === lyricsGeneration) {
       syncedLyricsSource = '';
+  syncedLyricsSyncer = '';
+  syncedLyricsSyncerUrl = '';
       setLyricsLoading(false);
     }
   });
@@ -3253,25 +3274,53 @@ function buildSettingsContent() {
   return root;
 }
 
+function lyricsProviderDiscord() {
+  if (localLyrics) return null;
+  if (syncedLyricsSource === 'LyricsFlow' || syncedLyricsSource === 'LyricsFlow Community') {
+    return { name: 'LyricsFlow', url: 'https://discord.gg/zXb7sTJrrq' };
+  }
+  if (syncedLyricsSource === 'Unison (Better Lyrics)' || syncedLyricsSource === 'Better Lyrics QQ') {
+    return { name: 'Better Lyrics', url: 'https://discord.gg/UsHE3d5fWF' };
+  }
+  return null;
+}
+
 function buildLyricsContent(sheet) {
   const root = document.createElement('div');
+  const discord = lyricsProviderDiscord();
+  const rows = [
+    sheetButtonRow('Open file…', () => {
+      sheet.dismiss();
+      openLocalLyrics();
+    }),
+    sheetValueRow(
+      'Source',
+      localLyrics ? localLyrics.name : syncedLyricsSource || 'Unavailable'
+    ),
+  ];
+  if (!localLyrics && syncedLyricsSyncer) {
+    if (syncedLyricsSyncerUrl) {
+      rows.push(
+        sheetButtonRow(`Synced by ${syncedLyricsSyncer}`, () => {
+          sheet.dismiss();
+          window.app?.openExternal?.(syncedLyricsSyncerUrl);
+        })
+      );
+    } else {
+      rows.push(sheetValueRow('Synced by', syncedLyricsSyncer));
+    }
+  }
+  if (discord) {
+    rows.push(
+      sheetButtonRow(`Join ${discord.name} on Discord`, () => {
+        sheet.dismiss();
+        window.app?.openExternal?.(discord.url);
+      })
+    );
+  }
   root.append(
     sheetHeading(`Lyrics · ${uiStyleOptions.find(option => option.value === uiStyle).label}`),
-    sheetGroup(
-      sheetButtonRow('Open file…', () => {
-        sheet.dismiss();
-        openLocalLyrics();
-      }),
-      /* sheetButtonRow('Search online…', () => {
-        sheet.dismiss();
-        lyricsSheet.setContent(buildLyricsSearchContent);
-        lyricsSheet.present();
-      }), */ // we need to remove search lyrics feature, too broken and useless
-      sheetValueRow(
-        'Source',
-        localLyrics ? localLyrics.name : syncedLyricsSource || 'Unavailable'
-      ),
-    ),
+    sheetGroup(...rows),
   );
   return root;
 }
@@ -3288,6 +3337,864 @@ const sheetBaseOptions = {
 
 let settingsSheet = new SheetView(sheetBaseOptions);
 let lyricsSheet = new SheetView({ ...sheetBaseOptions, fitContent: true });
+// Share Lyrics sheet (UI + motion only; actions are placeholders).
+//
+// Matches LyricsBlossom's ShareOverlay decompilation (ShareOverlay::render):
+// - openSpring: 0 -> 1, critically damped, response = 0.42 s (dismiss = 0.40 s).
+// - Per-line springs: start at 2.0 -> 0.0 with stiffness = 110, damping = 15,
+//   retargeted once openProgress > 0.3 with a 40 ms/row outward stagger from the
+//   selected range; lines above offset by -10.2 * sp (-20.4 -> 0 px), lines
+//   at/below offset by +34.0 * sp (+68 -> 0 px), opacity clamp(3 - 1.5*sp, 0..1).
+// - Held line pill morphs on s9 = 1 - (1 - openProgress)^3 from the player line
+//   to its target slot in the sheet, sampling the live <canvas class="backdrop">.
+// - Selected pills sample the live <canvas class="backdrop"> clipped with 20 px
+//   outer corners, 7 px inner corners, and a 2 px hairline between joined rows.
+const SHARE_FLY_RESPONSE = 0.3;
+const SHARE_LINE_STIFFNESS = 110;
+const SHARE_LINE_DAMPING = 15;
+const SHARE_REVEAL_AT = 0.4;
+const SHARE_ROW_STAGGER_S = 0.04;
+const SHARE_OFFSET_ABOVE = -10.2;
+const SHARE_OFFSET_BELOW = 34.0;
+const SHARE_PILL_GAP = 8;
+const SHARE_PILL_EXPAND = 0;
+const SHARE_PILL_OUTER_RADIUS = 20;
+const SHARE_PILL_INNER_RADIUS = 7;
+const SHARE_SELECT_STIFFNESS = 340;
+const SHARE_SELECT_DAMPING = 39;
+const SHARE_SELECT_STAGGER_S = 0.035;
+const SHARE_MAX_CHARS = 300;
+
+let shareLyricsSheet = new SheetView({
+  ...sheetBaseOptions,
+  title: 'Share Lyrics',
+  maxWidth: 440,
+});
+shareLyricsSheet.el.classList.add('share-lyrics-sheet');
+
+const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function criticalProgress(seconds, response) {
+  if (seconds <= 0) return 0;
+  const w = (2 * Math.PI) / response;
+  return 1 - (1 + w * seconds) * Math.exp(-w * seconds);
+}
+
+function makeLineSpring(initial = 2) {
+  return {
+    x: initial,
+    v: 0,
+    target: initial,
+    k: SHARE_LINE_STIFFNESS,
+    c: SHARE_LINE_DAMPING,
+    delay: 0,
+    triggered: false,
+  };
+}
+
+function stepDampedSpring(spring, target, k, c, dt) {
+  let rest = dt;
+  while (rest > 0) {
+    const h = Math.min(rest, 1 / 240);
+    spring.v += (-k * (spring.x - target) - c * spring.v) * h;
+    spring.x += spring.v * h;
+    rest -= h;
+  }
+}
+
+function stepLineSpring(spring, dt) {
+  if (spring.delay > 0) {
+    spring.delay -= dt;
+    if (spring.delay > 0) return;
+    dt = -spring.delay;
+    spring.delay = 0;
+  }
+  stepDampedSpring(spring, spring.target, spring.k, spring.c, dt);
+}
+
+const springSettled = (spring, target, eps = 0.005) =>
+  Math.abs(spring.x - target) < eps && Math.abs(spring.v) < eps * 2;
+
+const lineSpringSettled = spring =>
+  spring.delay <= 0 && springSettled(spring, spring.target);
+
+function captureShareBackdropSource() {
+  if (!backdropCanvas?.isConnected || !backdropCanvas.width || !backdropCanvas.height) {
+    return null;
+  }
+  if (!backdropPlaying) {
+    try { backdrop?.renderOnce?.(null, true); } catch {}
+  }
+  const snap = document.createElement('canvas');
+  snap.width = backdropCanvas.width;
+  snap.height = backdropCanvas.height;
+  const ctx = snap.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(backdropCanvas, 0, 0);
+  return snap;
+}
+
+function drawScreenMappedBackdrop(ctx, source, sourceRect, targetRect, radii, alpha = 1) {
+  const [tl, tr, br, bl] = radii;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, targetRect.width, targetRect.height, [tl, tr, br, bl]);
+  ctx.clip();
+  if (source && sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
+    ctx.drawImage(
+      source,
+      sourceRect.left - targetRect.left,
+      sourceRect.top - targetRect.top,
+      sourceRect.width,
+      sourceRect.height
+    );
+  } else {
+    ctx.fillStyle = '#5e5e66';
+    ctx.fillRect(0, 0, targetRect.width, targetRect.height);
+  }
+  ctx.restore();
+}
+
+function buildShareLyricsContent(sheet, initialIndex, sourceEl) {
+  const root = document.createElement('div');
+  root.className = 'share-lyrics-root';
+
+  // ---- track + selection count group (matches Settings sheet .sheet-group) ----
+  const summaryGroup = document.createElement('div');
+  summaryGroup.className = 'sheet-group share-lyrics-summary';
+  const summaryRow = document.createElement('div');
+  summaryRow.className = 'sheet-row share-lyrics-summary-row';
+  const cover = document.createElement('div');
+  cover.className = 'share-lyrics-cover';
+  if (state.artworkUrl) {
+    cover.style.backgroundImage = `url("${String(state.artworkUrl).replace(/"/g, '%22')}")`;
+  }
+  const meta = document.createElement('div');
+  meta.className = 'share-lyrics-meta';
+  const countEl = document.createElement('div');
+  countEl.className = 'share-lyrics-title';
+  const charsEl = document.createElement('div');
+  charsEl.className = 'share-lyrics-subtitle';
+  meta.append(countEl, charsEl);
+  summaryRow.append(cover, meta);
+  summaryGroup.append(summaryRow);
+
+  // ---- rows ----
+  const stageWrap = document.createElement('div');
+  stageWrap.className = 'share-lyrics-stage-wrap';
+  stageWrap.dataset.sheetviewNodrag = '';
+
+  const stage = document.createElement('div');
+  stage.className = 'share-lyrics-stage';
+  stage.dataset.sheetviewNodrag = '';
+
+  const stageCanvas = document.createElement('canvas');
+  stageCanvas.className = 'share-lyrics-stage-canvas';
+  stageCanvas.setAttribute('aria-hidden', 'true');
+  const stageCtx = stageCanvas.getContext('2d');
+  stage.append(stageCanvas);
+  stageWrap.append(stage);
+
+  const selectable = [];
+  for (let i = 0; i < lyricsView.lines.length; i += 1) {
+    const line = lyricsView.lines[i];
+    if (!line || line.isCredit || line.isBackground || !line.text?.trim()) continue;
+    const el = lyricsView.lineElements[i];
+    selectable.push({
+      index: i,
+      text: line.text.trim(),
+      rtl: el?.dir === 'rtl',
+      arabic: Boolean(el?.classList.contains('is-arabic')),
+      duet: Boolean(el?.classList.contains('is-duet')),
+    });
+  }
+  const totalChars = selectable.reduce((sum, item) => sum + item.text.length, 0);
+
+  let start = Math.max(0, selectable.findIndex(item => item.index === initialIndex));
+  let end = start;
+  const anchorPos = start;
+
+  const reduceMotion = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+  const lineSprings = selectable.map((_, pos) => (
+    pos === anchorPos
+      ? { ...makeLineSpring(0), triggered: true }
+      : makeLineSpring(2)
+  ));
+  const selStates = selectable.map((_, pos) => ({
+    delay: 0,
+    mask: { x: pos === anchorPos ? 1 : 0, v: 0, target: pos === anchorPos ? 1 : 0 },
+    topR: { x: SHARE_PILL_OUTER_RADIUS, v: 0, target: SHARE_PILL_OUTER_RADIUS },
+    botR: { x: SHARE_PILL_OUTER_RADIUS, v: 0, target: SHARE_PILL_OUTER_RADIUS },
+    expTop: { x: 0, v: 0, target: 0 },
+    expBot: { x: 0, v: 0, target: 0 },
+  }));
+  const rowEls = selectable.map((item, pos) => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'share-lyrics-line';
+    row.dataset.sheetviewNodrag = '';
+    if (item.rtl) row.dir = 'rtl';
+    if (item.arabic) row.classList.add('is-arabic');
+    if (item.duet) row.classList.add('is-duet');
+    row.textContent = item.text;
+    row.style.opacity = pos === anchorPos ? '1' : '0';
+    if (pos === anchorPos) row.style.transform = 'translate3d(0, 0, 0)';
+    row.addEventListener('click', () => select(pos));
+    stage.append(row);
+    return row;
+  });
+
+  const limitToast = document.createElement('div');
+  limitToast.className = 'share-lyrics-limit-toast';
+  limitToast.textContent = `Up to ${SHARE_MAX_CHARS} characters`;
+  let limitTimer = 0;
+
+  function showLimitToast() {
+    clearTimeout(limitTimer);
+    limitToast.classList.add('is-visible');
+    limitTimer = window.setTimeout(() => limitToast.classList.remove('is-visible'), 1600);
+  }
+
+  // ---- actions (placeholders) ----
+  const actions = document.createElement('div');
+  actions.className = 'share-lyrics-actions';
+  actions.dataset.sheetviewNodrag = '';
+  const actionGlasses = [];
+  const isSheetDark = () => (typeof sheet._isDark === 'function'
+    ? sheet._isDark()
+    : Boolean(window.matchMedia?.('(prefers-color-scheme: dark)')?.matches));
+  const getUnselectedPillFill = () => {
+    const varFill = getComputedStyle(stage).getPropertyValue('--solarium-sheet-group-bg').trim();
+    if (varFill) return varFill;
+    return isSheetDark() ? 'rgba(120, 120, 128, 0.24)' : 'rgba(120, 120, 128, 0.16)';
+  };
+  const captureShareActionBackdrop = (context, { captureLeft, captureTop, captureWidth, captureHeight }) => {
+    const dark = isSheetDark();
+    const unselectedFill = getUnselectedPillFill();
+    context.save();
+    context.fillStyle = dark ? '#1c1c1e' : '#f2f2f7';
+    context.fillRect(captureLeft, captureTop, captureWidth, captureHeight);
+    const wrapRect = stageWrap.getBoundingClientRect();
+    if (wrapRect.bottom > captureTop && wrapRect.top < captureTop + captureHeight &&
+        wrapRect.right > captureLeft && wrapRect.left < captureLeft + captureWidth) {
+      context.save();
+      context.beginPath();
+      context.rect(wrapRect.left, wrapRect.top, wrapRect.width, wrapRect.height);
+      context.clip();
+      for (const row of rowEls) {
+        const r = row.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        if (r.bottom <= captureTop || r.top >= captureTop + captureHeight ||
+            r.right <= captureLeft || r.left >= captureLeft + captureWidth) continue;
+        const style = getComputedStyle(row);
+        const radius = Math.min(Number.parseFloat(style.borderTopLeftRadius) || 0, r.width / 2, r.height / 2);
+        context.fillStyle = row.classList.contains('is-selected')
+          ? 'rgba(142, 142, 147, 0.45)'
+          : unselectedFill;
+        context.beginPath();
+        context.roundRect(r.left, r.top, r.width, r.height, radius);
+        context.fill();
+      }
+      context.restore();
+    }
+    context.restore();
+  };
+
+  const solarium = !solariumDisabledForSession ? solariumModule : null;
+  let actionBusy = false;
+  const actionTimers = new Set();
+
+  async function runShareExport(action, button, labelEl, idleLabel) {
+    if (actionBusy || !selectable.length) return;
+    actionBusy = true;
+    button.setAttribute('aria-busy', 'true');
+    try {
+      await document.fonts?.ready;
+      const card = await generateShareLyricsCard({
+        lines: selectable.slice(start, end + 1),
+        title: state.title,
+        artist: state.artist,
+        artworkUrl: state.artworkUrl || currentArtworkUrl || fallbackArtwork,
+        backdropSeed: backdrop?._seedName ?? '0',
+        backdropTime: backdrop?.time ?? 0,
+        fallbackBackdrop: activeBackdropSource(),
+      });
+      if (!card) return;
+
+      if (action === 'copy') {
+        let copied = false;
+        if (typeof window.app?.share?.copyImage === 'function') {
+          const res = await window.app.share.copyImage(card.dataUrl);
+          copied = Boolean(res?.ok);
+        } else if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+          const blob = await new Promise(resolve => card.canvas.toBlob(resolve, 'image/png'));
+          if (blob) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            copied = true;
+          }
+        }
+        if (copied && sheet.state !== 'closed') {
+          labelEl.textContent = 'Copied!';
+          const timer = window.setTimeout(() => {
+            actionTimers.delete(timer);
+            labelEl.textContent = idleLabel;
+          }, 1400);
+          actionTimers.add(timer);
+        }
+        return;
+      }
+
+      if (typeof window.app?.share?.saveImage === 'function') {
+        const res = await window.app.share.saveImage(card.dataUrl, card.filename);
+        if (res?.ok && sheet.state !== 'closed') {
+          labelEl.textContent = 'Saved!';
+          const timer = window.setTimeout(() => {
+            actionTimers.delete(timer);
+            if (sheet.state !== 'closed') sheet.dismiss();
+          }, 260);
+          actionTimers.add(timer);
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = card.dataUrl;
+        link.download = card.filename;
+        link.click();
+      }
+    } finally {
+      actionBusy = false;
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  for (const [label, primary, action] of [
+    ['Copy Image', false, 'copy'],
+    ['Save Image', true, 'save'],
+  ]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = primary ? 'share-lyrics-btn is-primary' : 'share-lyrics-btn';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'share-lyrics-btn__label';
+    labelEl.textContent = label;
+    button.append(labelEl);
+    button.dataset.sheetviewNodrag = '';
+    button.addEventListener('click', () => {
+      void runShareExport(action, button, labelEl, label);
+    });
+
+    if (solarium?.LiquidGlass && solarium?.LiquidGlassView) {
+      const { LiquidGlass, LiquidGlassView } = solarium;
+      const base = LiquidGlass.regular();
+      const material = new LiquidGlass({
+        uniforms: {
+          ...base.uniforms,
+          glassThickness: 12,
+          refractiveIndex: 1.54,
+          dispersionStrength: 6,
+          glareDistanceRange: 22,
+          glareAngleConvergence: 0.28,
+          glareOppositeSideBias: 0.85,
+          glareIntensity: primary ? 0.22 : 0.16,
+          glareEdgeSharpness: -0.06,
+        },
+        backgroundTextureSizeCoefficient: 1,
+        backgroundTextureScaleCoefficient: 0.3,
+        backgroundTextureBlurRadius: 3.0,
+        backdropTone: () => (primary
+          ? (isSheetDark() ? [1.06, 1.04] : [1.0, 1.02])
+          : (isSheetDark() ? [1.24, 1.04] : [1.0, 1.0])),
+        tintColor: () => (primary
+          ? (isSheetDark() ? [0.02, 0.48, 1.0, 0.82] : [0.0, 0.478, 1.0, 0.86])
+          : (isSheetDark() ? [0.18, 0.18, 0.20, 0.56] : [0.96, 0.98, 1.0, 0.58])),
+      });
+      const glass = new LiquidGlassView(material, {
+        onCapture: captureShareActionBackdrop,
+        cornerRadius: 23,
+        interactive: true,
+        pressTransformTarget: button,
+        pressScaleAmount: 0.06,
+      });
+      if (glass.renderer) {
+        button.classList.add('is-solarium-glass');
+      }
+      glass.element.className = 'solarium-share-btn__glass';
+      Object.assign(glass.element.style, {
+        position: 'absolute',
+        inset: '0',
+        zIndex: '0',
+        pointerEvents: 'none',
+      });
+      glass.element.setAttribute('aria-hidden', 'true');
+      button.prepend(glass.element);
+      actionGlasses.push(glass);
+    }
+
+    actions.append(button);
+  }
+
+  root.append(summaryGroup, stageWrap, limitToast, actions);
+
+  function applySelection(staggerOrigin = null) {
+    const count = selectable.length ? end - start + 1 : 0;
+    let chars = 0;
+    for (let k = start; k <= end; k += 1) chars += selectable[k]?.text.length ?? 0;
+    countEl.textContent = count === 1 ? '1 Line Selected' : `${count} Lines Selected`;
+    charsEl.textContent = `${chars}/${totalChars} characters`;
+    rowEls.forEach((row, pos) => {
+      const selected = pos >= start && pos <= end;
+      const joinedTop = selected && pos > start;
+      const joinedBottom = selected && pos < end;
+      row.classList.toggle('is-selected', selected);
+      row.classList.toggle('is-joined-top', joinedTop);
+      row.classList.toggle('is-joined-bottom', joinedBottom);
+
+      const s = selStates[pos];
+      s.mask.target = selected ? 1 : 0;
+      s.topR.target = joinedTop ? SHARE_PILL_INNER_RADIUS : SHARE_PILL_OUTER_RADIUS;
+      s.botR.target = joinedBottom ? SHARE_PILL_INNER_RADIUS : SHARE_PILL_OUTER_RADIUS;
+      s.expTop.target = joinedTop ? SHARE_PILL_EXPAND : 0;
+      s.expBot.target = joinedBottom ? SHARE_PILL_EXPAND : 0;
+      s.delay = staggerOrigin == null || reduceMotion
+        ? 0
+        : Math.abs(pos - staggerOrigin) * SHARE_SELECT_STAGGER_S;
+      if (reduceMotion) {
+        for (const prop of [s.mask, s.topR, s.botR, s.expTop, s.expBot]) {
+          prop.x = prop.target;
+          prop.v = 0;
+        }
+      }
+    });
+  }
+
+  // Matches LyricsBlossom's ShareOverlay::selectLine range logic (0x100262ca4).
+  function select(pos) {
+    if (pos < 0 || pos >= selectable.length) return;
+    const prevStart = start;
+    const prevEnd = end;
+    let nextStart = start;
+    let nextEnd = end;
+    if (pos >= start && pos <= end) {
+      if (start === end) return;
+      if (pos === start) nextStart = start + 1;
+      else if (pos === end) nextEnd = end - 1;
+      else if (pos - start <= end - pos) nextStart = pos;
+      else nextEnd = pos;
+    } else {
+      nextStart = Math.min(start, pos);
+      nextEnd = Math.max(end, pos);
+    }
+
+    let nextChars = 0;
+    for (let k = nextStart; k <= nextEnd; k += 1) nextChars += selectable[k].text.length;
+    if (nextChars > SHARE_MAX_CHARS) {
+      showLimitToast();
+      return;
+    }
+
+    const staggerOrigin = pos > prevEnd
+      ? prevEnd
+      : pos < prevStart
+        ? prevStart
+        : pos;
+    start = nextStart;
+    end = nextEnd;
+    applySelection(staggerOrigin);
+    kick();
+  }
+
+  applySelection();
+
+  // ---- live backdrop sampling & selected pills rendering ----
+  const staticBackdrop = captureShareBackdropSource();
+
+  function activeBackdropSource() {
+    if (backdropPlaying && backdropCanvas?.isConnected && backdropCanvas.width && backdropCanvas.height) {
+      return backdropCanvas;
+    }
+    return staticBackdrop;
+  }
+
+  function renderSelectedBackdropPills() {
+    if (!stageCtx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const width = stage.clientWidth;
+    const height = Math.max(stage.clientHeight, stage.scrollHeight);
+    if (!width || !height) return;
+
+    const canvasDpr = Math.min(dpr, 12000 / Math.max(1, height));
+    const targetW = Math.round(width * canvasDpr);
+    const targetH = Math.round(height * canvasDpr);
+    if (stageCanvas.width !== targetW || stageCanvas.height !== targetH) {
+      stageCanvas.width = targetW;
+      stageCanvas.height = targetH;
+      stageCanvas.style.width = `${width}px`;
+      stageCanvas.style.height = `${height}px`;
+    }
+
+    stageCtx.setTransform(canvasDpr, 0, 0, canvasDpr, 0, 0);
+    stageCtx.clearRect(0, 0, width, height);
+
+    const stageRect = stage.getBoundingClientRect();
+    const bgSource = activeBackdropSource();
+    const bgRect = backdropCanvas?.isConnected ? backdropCanvas.getBoundingClientRect() : null;
+    const scrollTop = stage.scrollTop;
+    const unselectedFill = getUnselectedPillFill();
+
+    for (let pos = 0; pos < rowEls.length; pos += 1) {
+      const row = rowEls[pos];
+      if (row.classList.contains('is-flying')) continue;
+      const sp = lineSprings[pos].x;
+      const rowAlpha = pos === anchorPos ? 1 : clamp01(3 - 1.5 * sp);
+      if (rowAlpha <= 0.005) continue;
+
+      const s = selStates[pos];
+      const maskAlpha = clamp01(s.mask.x);
+      const yOffset = pos === anchorPos ? 0 : (pos < anchorPos ? SHARE_OFFSET_ABOVE : SHARE_OFFSET_BELOW) * sp;
+      const expandTop = Math.max(0, s.expTop.x);
+      const expandBottom = Math.max(0, s.expBot.x);
+      const x = row.offsetLeft;
+      const y = row.offsetTop + yOffset - expandTop;
+      const w = row.offsetWidth;
+      const h = row.offsetHeight + expandTop + expandBottom;
+      if (y + h <= 0 || y >= height) continue;
+
+      const topRadius = Math.max(0, s.topR.x);
+      const bottomRadius = Math.max(0, s.botR.x);
+      const radii = [topRadius, topRadius, bottomRadius, bottomRadius];
+
+      stageCtx.save();
+      stageCtx.translate(x, y);
+      if (maskAlpha < 0.995) {
+        stageCtx.save();
+        stageCtx.globalAlpha = rowAlpha;
+        stageCtx.beginPath();
+        stageCtx.roundRect(0, 0, w, h, radii);
+        stageCtx.fillStyle = unselectedFill;
+        stageCtx.fill();
+        stageCtx.restore();
+      }
+      if (maskAlpha > 0.005) {
+        const pillScreenRect = {
+          left: stageRect.left + x,
+          top: stageRect.top + y - scrollTop,
+          width: w,
+          height: h,
+        };
+        drawScreenMappedBackdrop(stageCtx, bgSource, bgRect, pillScreenRect, radii, rowAlpha * maskAlpha);
+      }
+      stageCtx.restore();
+    }
+  }
+
+  // ---- held line flying pill (0x100267580..0x100267978) ----
+  const sourceText = sourceEl?.querySelector('.lyrics-main-text') ?? sourceEl;
+  const anchorRow = rowEls[anchorPos];
+  let flight = null;
+
+  function sourceGeometry() {
+    if (!sourceText?.isConnected) return null;
+    const rect = sourceText.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const base = Number.parseFloat(getComputedStyle(sourceEl).fontSize) || 40;
+    const painted = sourceText.offsetWidth ? base * (rect.width / sourceText.offsetWidth) : base;
+    return {
+      left: rect.left - 14,
+      top: rect.top - 4,
+      right: rect.right + 14,
+      bottom: rect.bottom + 4,
+      textLeft: rect.left,
+      textTop: rect.top,
+      textRight: rect.right,
+      fontPx: painted,
+    };
+  }
+
+  function rowGeometry(row) {
+    const rect = row.getBoundingClientRect();
+    const style = getComputedStyle(row);
+    const padL = Number.parseFloat(style.paddingLeft) || 0;
+    const padR = Number.parseFloat(style.paddingRight) || 0;
+    const padT = Number.parseFloat(style.paddingTop) || 0;
+    return {
+      rect,
+      textLeft: rect.left + padL,
+      textRight: rect.right - padR,
+      textTop: rect.top + padT,
+      textWidth: rect.width - padL - padR,
+      fontPx: Number.parseFloat(style.fontSize) || 17,
+      alignRight: style.textAlign === 'right' || style.textAlign === 'end',
+    };
+  }
+
+  function makeFlyer(row) {
+    const style = getComputedStyle(row);
+    const wrap = document.createElement('div');
+    wrap.className = 'share-lyrics-flyer';
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'share-lyrics-flyer-canvas';
+    const textEl = document.createElement('div');
+    textEl.className = 'share-lyrics-flyer-text';
+    textEl.textContent = row.textContent;
+    if (row.dir) textEl.dir = row.dir;
+    textEl.style.font = style.font;
+    textEl.style.letterSpacing = style.letterSpacing;
+    textEl.style.lineHeight = style.lineHeight;
+    textEl.style.textAlign = style.textAlign;
+
+    wrap.append(canvas, textEl);
+    document.body.append(wrap);
+    return { el: wrap, canvas, ctx: canvas.getContext('2d'), textEl };
+  }
+
+  function renderFlyer(f, from, toDir, rawProgress) {
+    const p = clamp01(rawProgress);
+    const target = rowGeometry(f.row);
+
+    const a = toDir === 'row' ? p : 1 - p;
+    const pillLeft = lerp(from.left, target.rect.left, a);
+    const pillTop = lerp(from.top, target.rect.top, a);
+    const pillRight = lerp(from.right, target.rect.right, a);
+    const pillBottom = lerp(from.bottom, target.rect.bottom, a);
+    const pillW = Math.max(1, pillRight - pillLeft);
+    const pillH = Math.max(1, pillBottom - pillTop);
+    const radius = lerp(8, SHARE_PILL_OUTER_RADIUS, a);
+    const shadowAlpha = lerp(0.47, 0.23, a);
+    // share_render.c:3792 -> text crossfade ~ 2.2857 * p (completes by p = 0.4375)
+    const textFade = clamp01(p * (20 / 9));
+
+    f.el.style.transform = `translate3d(${pillLeft}px, ${pillTop}px, 0)`;
+    f.el.style.width = `${pillW}px`;
+    f.el.style.height = `${pillH}px`;
+    f.el.style.borderRadius = `${radius}px`;
+    f.el.style.boxShadow = `0 12px 32px rgba(0, 0, 0, ${shadowAlpha.toFixed(3)})`;
+
+    if (f.ctx) {
+      const dpr = window.devicePixelRatio || 1;
+      const cw = Math.round(pillW * dpr);
+      const ch = Math.round(pillH * dpr);
+      if (f.canvas.width !== cw || f.canvas.height !== ch) {
+        f.canvas.width = cw;
+        f.canvas.height = ch;
+      }
+      f.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      f.ctx.clearRect(0, 0, pillW, pillH);
+      const bgSource = activeBackdropSource();
+      const bgRect = backdropCanvas?.isConnected ? backdropCanvas.getBoundingClientRect() : null;
+      drawScreenMappedBackdrop(
+        f.ctx,
+        bgSource,
+        bgRect,
+        { left: pillLeft, top: pillTop, width: pillW, height: pillH },
+        [radius, radius, radius, radius],
+        1
+      );
+    }
+
+    const s0 = from.fontPx / target.fontPx;
+    const scaledW = target.textWidth * s0;
+    const startTextX = target.alignRight ? from.textRight - scaledW : from.textLeft;
+    const curTextX = lerp(startTextX, target.textLeft, a) - pillLeft;
+    const curTextY = lerp(from.textTop, target.textTop, a) - pillTop;
+    const curScale = lerp(s0, 1, a);
+
+    f.textEl.style.width = `${target.textWidth}px`;
+    f.textEl.style.transform = `translate3d(${curTextX}px, ${curTextY}px, 0) scale(${curScale})`;
+    f.textEl.style.opacity = String(textFade);
+  }
+
+  function startFlight() {
+    if (!anchorRow || reduceMotion) {
+      flight = null;
+      anchorRow?.classList.remove('is-flying');
+      return;
+    }
+    flight?.el.remove();
+    const from = sourceGeometry();
+    if (!from) {
+      flight = null;
+      anchorRow.classList.remove('is-flying');
+      return;
+    }
+    const built = makeFlyer(anchorRow);
+    flight = {
+      ...built,
+      row: anchorRow,
+      from,
+      t0: performance.now(),
+      response: SHARE_FLY_RESPONSE,
+      done: false,
+    };
+    anchorRow.classList.add('is-flying');
+    renderFlyer(flight, flight.from, 'row', 0);
+  }
+
+  // ---- stagger trigger & frame loop ----
+  let revealed = false;
+  let raf = 0;
+  let last = 0;
+
+  function triggerRowCascade() {
+    revealed = true;
+    for (let pos = 0; pos < lineSprings.length; pos += 1) {
+      if (pos === anchorPos) continue;
+      const spring = lineSprings[pos];
+      if (reduceMotion) {
+        spring.x = 0;
+        spring.v = 0;
+        spring.target = 0;
+        spring.delay = 0;
+        const row = rowEls[pos];
+        row.style.transform = 'translate3d(0, 0, 0)';
+        row.style.opacity = '1';
+      } else {
+        const dist = pos < start ? start - pos : pos > end ? pos - end : 0;
+        spring.target = 0;
+        spring.delay = dist * SHARE_ROW_STAGGER_S;
+      }
+      spring.triggered = true;
+    }
+  }
+
+  function frame(now) {
+    raf = 0;
+    const dt = Math.min(0.05, (now - (last || now)) / 1000);
+    last = now;
+    let busy = sheet._raf !== 0 || backdropPlaying;
+
+    if (revealed) {
+      for (let pos = 0; pos < lineSprings.length; pos += 1) {
+        if (pos === anchorPos) continue;
+        const spring = lineSprings[pos];
+        stepLineSpring(spring, dt);
+        if (!lineSpringSettled(spring)) busy = true;
+
+        const row = rowEls[pos];
+        const yOffset = (pos < anchorPos ? SHARE_OFFSET_ABOVE : SHARE_OFFSET_BELOW) * spring.x;
+        const alpha = clamp01(3 - 1.5 * spring.x);
+        row.style.transform = Math.abs(yOffset) < 0.05
+          ? 'translate3d(0, 0, 0)'
+          : `translate3d(0, ${yOffset.toFixed(2)}px, 0)`;
+        row.style.opacity = alpha.toFixed(3);
+      }
+    }
+
+    for (let pos = 0; pos < selStates.length; pos += 1) {
+      const s = selStates[pos];
+      let stepDt = dt;
+      if (s.delay > 0) {
+        s.delay -= dt;
+        if (s.delay > 0) {
+          busy = true;
+          continue;
+        }
+        stepDt = -s.delay;
+        s.delay = 0;
+      }
+      for (const [prop, eps] of [
+        [s.mask, 0.004],
+        [s.topR, 0.04],
+        [s.botR, 0.04],
+        [s.expTop, 0.02],
+        [s.expBot, 0.02],
+      ]) {
+        if (!springSettled(prop, prop.target, eps)) {
+          stepDampedSpring(prop, prop.target, SHARE_SELECT_STIFFNESS, SHARE_SELECT_DAMPING, stepDt);
+          if (!springSettled(prop, prop.target, eps)) {
+            busy = true;
+          } else {
+            prop.x = prop.target;
+            prop.v = 0;
+          }
+        }
+      }
+    }
+
+    if (flight && !flight.done) {
+      const elapsed = (now - flight.t0) / 1000;
+      const p = criticalProgress(elapsed, flight.response);
+      if (!revealed && p >= SHARE_REVEAL_AT) {
+        triggerRowCascade();
+      }
+      renderFlyer(flight, flight.from, 'row', p);
+      if (p > 0.997 || elapsed > 1.5) {
+        flight.done = true;
+        flight.el.remove();
+        anchorRow.classList.remove('is-flying');
+      } else {
+        busy = true;
+      }
+    } else if (!revealed) {
+      triggerRowCascade();
+      busy = true;
+    }
+
+    renderSelectedBackdropPills();
+
+    if (busy && sheet.state !== 'closed') raf = requestAnimationFrame(frame);
+  }
+
+  function kick() {
+    if (!raf) {
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    }
+  }
+
+  const redrawActionGlasses = () => {
+    for (const glass of actionGlasses) glass.requestDraw();
+  };
+  const onResize = () => {
+    renderSelectedBackdropPills();
+    redrawActionGlasses();
+  };
+  const darkMedia = actionGlasses.length ? window.matchMedia?.('(prefers-color-scheme: dark)') ?? null : null;
+  stage.addEventListener('scroll', renderSelectedBackdropPills, { passive: true });
+  window.addEventListener('resize', onResize);
+  darkMedia?.addEventListener?.('change', redrawActionGlasses);
+
+  const prevOnDismiss = sheet.opts.onDismiss;
+  sheet.opts.onDismiss = () => {
+    clearTimeout(limitTimer);
+    for (const timer of actionTimers) clearTimeout(timer);
+    actionTimers.clear();
+    cancelAnimationFrame(raf);
+    raf = 0;
+    window.removeEventListener('resize', onResize);
+    darkMedia?.removeEventListener?.('change', redrawActionGlasses);
+    for (const glass of actionGlasses) glass.dispose();
+    actionGlasses.length = 0;
+    flight?.el.remove();
+    flight = null;
+    sheet.opts.onDismiss = prevOnDismiss ?? null;
+    prevOnDismiss?.();
+  };
+
+  requestAnimationFrame(() => {
+    if (anchorRow) {
+      stage.scrollTop = Math.max(
+        0,
+        anchorRow.offsetTop - (stage.clientHeight - anchorRow.offsetHeight) * 0.5
+      );
+    }
+    renderSelectedBackdropPills();
+    redrawActionGlasses();
+    startFlight();
+    kick();
+  });
+
+  return root;
+}
+
+function openShareLyricsSheet(lineIndex, _line, sourceEl) {
+  if (!lyricsView.lines.length || shareLyricsSheet.state !== 'closed') return;
+  if (settingsSheet.state !== 'closed' || lyricsSheet.state !== 'closed') return;
+  shareLyricsSheet.setContent(sheet => buildShareLyricsContent(sheet, lineIndex, sourceEl));
+  void shareLyricsSheet.present();
+}
 
 let solariumSheetStylesheetEl = null;
 let solariumAlertStylesheetEl = null;
@@ -3792,6 +4699,8 @@ function syncSolariumSheets() {
   };
   settingsSheet = swap(settingsSheet, { title: 'Settings' });
   lyricsSheet = swap(lyricsSheet, { fitContent: true, title: 'Lyrics' });
+  shareLyricsSheet = swap(shareLyricsSheet, { title: 'Share Lyrics', maxWidth: 440 });
+  shareLyricsSheet.el.classList.add('share-lyrics-sheet');
 }
 
 function mountStandardMetadataMenu() {

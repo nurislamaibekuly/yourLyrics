@@ -143,7 +143,7 @@
      amount 0..1 -> 0.85..1.3 (default 1 -> 1.3). */
   --lyrics-lift-amount: 1;
   --lyrics-lift: calc(0.85 + 0.45 * var(--lyrics-lift-amount));
-  --bright-mask-alpha: 1;
+  --bright-mask-alpha: 0.92;
   --dark-mask-alpha: 0.38;
   /* Keep the lyric foreground neutral and bright, then lower the animated
      mesh behind it for contrast without recoloring individual glyphs. */
@@ -1272,7 +1272,8 @@ body.is-lyrics-hidden .lyrics {
 
 /* The track is a left-aligned flex column, so an RTL row's box would sit on
    the left with its text right-aligned inside it, leaving a dead gap on the
-   right. Pin the box itself to the right edge, duet or not. */
+   right. Pin primary RTL rows to the right edge; answering duet rows flip back
+   to the left edge below. */
 .lyrics-line[dir="rtl"]:not(.is-credit) {
   align-self: flex-end;
   margin-left: auto;
@@ -1403,6 +1404,27 @@ body.is-lyrics-hidden .lyrics {
   align-self: flex-end;
   text-align: right;
   transform-origin: right center;
+}
+
+/* Answering voice in an RTL duet sits flush left, opposite the primary
+   right-aligned voice, while keeping its right-to-left script direction. */
+.lyrics-line[dir="rtl"].is-duet {
+  align-self: flex-start;
+  margin-left: 0;
+  text-align: left;
+  transform-origin: left center;
+}
+
+.lyrics-line[dir="rtl"].is-duet .lyrics-background-inner {
+  text-align: left;
+}
+
+.lyrics-line[dir="rtl"].is-duet .lyrics-background-text {
+  transform-origin: left top;
+}
+
+.lyrics-line[dir="rtl"].is-duet .lyrics-background-text.is-before {
+  transform-origin: left bottom;
 }
 
 /* Words are atomic boxes so the per-word spring can use a compositor
@@ -1552,6 +1574,10 @@ body.is-lyrics-hidden .lyrics {
 .lyrics-interlude.is-active {
   display: flex;
   height: 2.007em;
+}
+
+.lyrics-interlude.is-right {
+  justify-content: flex-end;
 }
 
 .lyrics-interlude-dots {
@@ -2368,3 +2394,259 @@ body.has-developer-bounds :is(.lyrics-word, .lyrics-background-word) { outline: 
 .developer-overlay[data-corner="bottom-right"] { top: auto; bottom: 18px; transform-origin: right bottom; }
 .developer-overlay[data-corner="bottom-left"] { top: auto; right: auto; bottom: 18px; left: 12px; transform-origin: left bottom; }
 .developer-overlay[data-frozen="true"]::before { content: 'Frozen\a'; color: #fde047; }
+
+/* Share Lyrics sheet: native Settings/Solarium SheetView styling, live
+   backdrop-masked pills, per-line spring cascade, and cloned line flight. */
+.share-lyrics-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 12px;
+  min-height: 0;
+}
+
+.share-lyrics-summary {
+  margin-bottom: 0;
+}
+
+.solarium-sheetview .sheetview__scroll > div > .share-lyrics-summary:first-of-type {
+  margin-bottom: 0;
+}
+
+.share-lyrics-summary-row {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.share-lyrics-cover {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex: 0 0 auto;
+  background-color: rgba(120, 120, 128, 0.18);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+}
+
+.share-lyrics-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.share-lyrics-title {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--sheetview-ink, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-lyrics-subtitle {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.55;
+  color: var(--sheetview-ink, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.share-lyrics-stage-wrap {
+  position: relative;
+  min-height: 0;
+  margin: 0 16px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 18px,
+    #000 calc(100% - 18px),
+    transparent 100%
+  );
+}
+
+.solarium-sheetview .share-lyrics-stage-wrap {
+  margin: 0 18px;
+}
+
+.share-lyrics-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  max-height: min(48vh, 400px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.share-lyrics-stage::-webkit-scrollbar {
+  display: none;
+}
+
+.share-lyrics-stage-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.share-lyrics-line {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  border: 0;
+  width: 100%;
+  padding: 13px 18px;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--sheetview-ink, inherit);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  will-change: transform, opacity;
+  transition:
+    color 180ms ease,
+    text-shadow 180ms ease;
+}
+
+.share-lyrics-line.is-arabic {
+  font-family: "SF Arabic", var(--app-font-family,
+    "SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif);
+}
+
+.share-lyrics-line[dir="rtl"]:not(.is-duet),
+.share-lyrics-line.is-duet:not([dir="rtl"]) {
+  text-align: right;
+}
+
+.share-lyrics-line[dir="rtl"].is-duet {
+  text-align: left;
+}
+
+.share-lyrics-line.is-selected {
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
+}
+
+.share-lyrics-line.is-flying {
+  visibility: hidden;
+}
+
+.share-lyrics-flyer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2147483002;
+  pointer-events: none;
+  transform-origin: top left;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.share-lyrics-flyer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.share-lyrics-flyer-text {
+  position: relative;
+  z-index: 1;
+  transform-origin: top left;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.28);
+  will-change: transform, opacity;
+}
+
+.share-lyrics-limit-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translate3d(-50%, 8px, 0);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.88);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 3;
+  transition: opacity 200ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.share-lyrics-limit-toast.is-visible {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+}
+
+.share-lyrics-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 0 16px;
+}
+
+.solarium-sheetview .share-lyrics-actions {
+  margin: 0 18px;
+}
+
+.share-lyrics-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  min-height: 46px;
+  padding: 11px 16px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--sheetview-ink, inherit);
+  background: var(--solarium-sheet-group-bg, rgba(120, 120, 128, 0.18));
+  cursor: pointer;
+}
+
+.share-lyrics-btn__label {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.share-lyrics-btn.is-primary {
+  background: #007aff;
+  color: #fff;
+}
+
+.share-lyrics-btn.is-solarium-glass,
+.share-lyrics-btn.is-solarium-glass.is-primary {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .share-lyrics-line,
+  .share-lyrics-limit-toast {
+    transition: none;
+  }
+}

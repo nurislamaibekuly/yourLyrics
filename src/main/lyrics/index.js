@@ -7,6 +7,7 @@ const { getNowPlaying } = require('../media/now-playing');
 const apiRoot = 'https://lrclib.net/api/';
 const lyricsFlowRoot = 'https://api.trylyricsflow.com';
 const betterLyricsRoot = 'https://api.betterlyrics.org';
+const unisonRoot = 'https://unison.betterlyrics.org';
 const paxsenixRoot = 'https://lyrics.paxsenix.org';
 const liriqoRoot = 'https://api.liriqo-alfarrizi.my.id/v1';
 const amllRoot = 'https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main';
@@ -122,7 +123,13 @@ function validCachedLyrics(value) {
   if (!text) {
     return null;
   }
-  return { text, format, source, communityAuthor: cleanText(value.communityAuthor) };
+  return {
+    text,
+    format,
+    source,
+    communityAuthor: cleanText(value.communityAuthor),
+    communityAuthorUrl: cleanText(value.communityAuthorUrl)
+  };
 }
 
 async function readPersistedLyrics(key) {
@@ -755,10 +762,11 @@ async function resolveLyricsFlowArtworkUncached(track) {
   if (!track.title && !track.artist) {
     return null;
   }
+  const queryAlt = alternateRecordingPhrase(track.title);
+  let best = null;
+  let bestScore = -1;
   for (const storefront of lyricsFlowStorefronts()) {
     const rows = await lyricsFlowSearchSongs(track, storefront);
-    let best = null;
-    let bestScore = -1;
     for (const value of rows) {
       const candidate = lyricsFlowCandidateFrom(value);
       if (!candidate || !candidate.artworkUrl) {
@@ -768,20 +776,36 @@ async function resolveLyricsFlowArtworkUncached(track) {
       if (titleScore < 2) {
         continue;
       }
-      // The artist bonus outweighs a bare title-prefix hit so another
-      // artist's same-named song (Elton John's "Daniel") never wins.
-      let score = titleScore + artworkArtistScore(candidate.artist, track.artist) * 2;
-      if (track.album && matchTitle(candidate.album, track.album) > 0) {
-        score += 1;
+      const artistScore = artworkArtistScore(candidate.artist, track.artist);
+      if (track.artist && artistScore === 0) {
+        continue;
+      }
+      if (alternateRecordingPhrase(candidate.title) && !queryAlt) {
+        continue;
+      }
+      let score = titleScore + artistScore * 2;
+      if (track.album) {
+        score += albumNameScore(candidate.album, track.album) * 2;
+      }
+      if (track.durationSeconds > 0 && candidate.duration > 0) {
+        const delta = Math.abs(candidate.duration - track.durationSeconds);
+        if (delta <= 8) {
+          score += 2;
+        } else if (delta <= 25) {
+          score += 1;
+        }
       }
       if (score > bestScore) {
         bestScore = score;
         best = candidate;
       }
     }
-    if (best) {
+    if (best && (!track.album || albumNameScore(best.album, track.album) > 0)) {
       return { candidate: best };
     }
+  }
+  if (best) {
+    return { candidate: best };
   }
   const resolved = await resolveLyricsFlowTrack(track);
   return resolved?.candidate?.artworkUrl ? { candidate: resolved.candidate } : null;
@@ -884,10 +908,16 @@ async function fetchLyricsFlowCommunityLyrics(songId) {
         const text = (await response.text()).trim();
         if (text && Buffer.byteLength(text, 'utf8') <= maxLocalLyricsBytes &&
             /<tt(?:\s|>)/i.test(text)) {
+          const author = cleanText(entry.author);
+          const communityAuthor = cleanText(entry.nickname) || author;
+          const communityAuthorUrl = author
+            ? `https://trylyricsflow.com/${encodeURIComponent(author)}`
+            : '';
           return {
             text, format: 'ttml', source: 'lyricsflow-community',
             timed: isTimedTtml(text),
-            communityAuthor: cleanText(entry.nickname) || cleanText(entry.author)
+            communityAuthor,
+            ...(communityAuthorUrl ? { communityAuthorUrl } : {})
           };
         }
       } catch {
@@ -1088,15 +1118,10 @@ async function resolveLyricsFlowEditionLyrics(track, resolved, shouldStop) {
   return best;
 }
 
-async function resolveLyricsFlowLyrics(track) {
+async function resolveLyricsFlowCatalogLyrics(track, resolved) {
   try {
-    const resolved = await resolveLyricsFlowTrack(track);
     if (!resolved) {
       return null;
-    }
-    const community = await fetchLyricsFlowCommunityLyrics(resolved.candidate.id);
-    if (community) {
-      return community;
     }
     // `hasTimeSyncedLyrics` from the catalog is unreliable: it is false for
     // many tracks (especially explicit releases) whose TTML the lyrics
@@ -1142,6 +1167,22 @@ async function resolveLyricsFlowLyrics(track) {
     return lyricsFlowRank(edition) > lyricsFlowRank(primary)
       ? edition
       : (primary ?? edition);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveLyricsFlowLyrics(track) {
+  try {
+    const resolved = await resolveLyricsFlowTrack(track);
+    if (!resolved) {
+      return null;
+    }
+    const community = await fetchLyricsFlowCommunityLyrics(resolved.candidate.id);
+    if (community) {
+      return community;
+    }
+    return await resolveLyricsFlowCatalogLyrics(track, resolved);
   } catch {
     return null;
   }
@@ -1286,6 +1327,77 @@ function liriqoLyrics(candidate) {
   return null;
 }
 
+function cleanUnisonArtist(artist) {
+  return cleanText(artist).replace(/\s*-\s*topic$/i, '').trim();
+}
+
+async function fetchUnisonByParams(params) {
+  try {
+    const result = await requestJson(`${unisonRoot}/lyrics?${params}`);
+    if (result.status !== 200 || !result.body?.success || !result.body?.data) {
+      return null;
+    }
+    return result.body.data;
+  } catch {
+    return null;
+  }
+}
+
+function unisonSubmitterInfo(submitter) {
+  const communityAuthor = cleanText(submitter?.displayName);
+  const keyId = cleanText(submitter?.keyId);
+  const communityAuthorUrl = keyId
+    ? `${unisonRoot}/curator/${encodeURIComponent(keyId)}`
+    : '';
+  return { communityAuthor, communityAuthorUrl };
+}
+
+async function resolveUnisonSubmitter({ videoId, title, artist }) {
+  if (videoId) {
+    const byVideo = await fetchUnisonByParams(new URLSearchParams({ v: videoId }));
+    const info = unisonSubmitterInfo(byVideo?.submitter);
+    if (info.communityAuthor || info.communityAuthorUrl) return info;
+  }
+  const cleanArtist = cleanUnisonArtist(artist);
+  if (title && cleanArtist) {
+    const byTrack = await fetchUnisonByParams(new URLSearchParams({ song: title, artist: cleanArtist }));
+    return unisonSubmitterInfo(byTrack?.submitter);
+  }
+  return { communityAuthor: '', communityAuthorUrl: '' };
+}
+
+async function resolveUnisonLyrics(track) {
+  const cleanArtist = cleanUnisonArtist(track.artist);
+  if (!track.title || !cleanArtist) {
+    return null;
+  }
+  const data = await fetchUnisonByParams(new URLSearchParams({ song: track.title, artist: cleanArtist }));
+  if (!data) {
+    return null;
+  }
+  if ((data.song && matchTitle(data.song, track.title) < 3) ||
+      (data.artist && !matchArtist(data.artist, track.artist))) {
+    return null;
+  }
+  const text = cleanText(data.lyrics);
+  if (!text || Buffer.byteLength(text, 'utf8') > maxLocalLyricsBytes) {
+    return null;
+  }
+  const format = /<tt(?:\s|>)/i.test(text) ? 'ttml' : (/\[\d+:\d+/.test(text) ? 'lrc' : '');
+  if (!format) {
+    return null;
+  }
+  const { communityAuthor, communityAuthorUrl } = unisonSubmitterInfo(data.submitter);
+  return {
+    text,
+    format,
+    source: 'unison',
+    timed: format === 'ttml' ? isTimedTtml(text) : true,
+    ...(communityAuthor ? { communityAuthor } : {}),
+    ...(communityAuthorUrl ? { communityAuthorUrl } : {})
+  };
+}
+
 async function resolveLiriqoLyrics(track) {
   try {
     const params = new URLSearchParams({ title: track.title, artist: track.artist, fast: '1' });
@@ -1307,10 +1419,20 @@ async function resolveLiriqoLyrics(track) {
       const lyrics = liriqoLyrics(candidate);
       if (lyrics && Buffer.byteLength(lyrics.text, 'utf8') <= maxLocalLyricsBytes) {
         const provider = cleanText(candidate.upstreamProvider || candidate.lyricsSource || candidate.provider);
+        const isUnison = candidate.provider === 'unison_community' || /^unison\b/i.test(provider);
+        const { communityAuthor, communityAuthorUrl } = isUnison
+          ? await resolveUnisonSubmitter({
+              videoId: cleanText(result.body.videoId),
+              title: cleanText(candidate.title) || track.title,
+              artist: cleanText(candidate.artist) || track.artist
+            })
+          : { communityAuthor: '', communityAuthorUrl: '' };
         return {
           ...lyrics,
           timed: lyrics.format === 'ttml' ? isTimedTtml(lyrics.text) : true,
-          source: provider ? `LiriQo · ${provider}` : 'LiriQo'
+          source: provider ? `LiriQo · ${provider}` : 'LiriQo',
+          ...(communityAuthor ? { communityAuthor } : {}),
+          ...(communityAuthorUrl ? { communityAuthorUrl } : {})
         };
       }
     }
@@ -1516,7 +1638,8 @@ function lyricsResponse(key, value) {
     text: value.text,
     format: value.format,
     source: value.source,
-    communityAuthor: cleanText(value.communityAuthor)
+    communityAuthor: cleanText(value.communityAuthor),
+    communityAuthorUrl: cleanText(value.communityAuthorUrl)
   };
 }
 
@@ -1539,7 +1662,24 @@ async function resolveLyrics(track) {
     return result;
   };
 
-  const flow = synced(await resolveLyricsFlowLyrics(track));
+  const flowTrack = await resolveLyricsFlowTrack(track).catch(() => null);
+  const flowCommunity = flowTrack
+    ? synced(await fetchLyricsFlowCommunityLyrics(flowTrack.candidate.id).catch(() => null))
+    : null;
+  if (flowCommunity) {
+    console.log("Resolved lyrics from LyricsFlow Community:", flowCommunity);
+    return flowCommunity;
+  }
+
+  const unison = synced(await resolveUnisonLyrics(track));
+  if (unison) {
+    console.log("Resolved lyrics from Unison (Better Lyrics)");
+    return unison;
+  }
+
+  const flow = flowTrack
+    ? synced(await resolveLyricsFlowCatalogLyrics(track, flowTrack))
+    : null;
   if (flow) {
     console.log("Resolved lyrics from LyricsFlow:", flow);
     return flow;

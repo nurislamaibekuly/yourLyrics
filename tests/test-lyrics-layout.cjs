@@ -639,6 +639,51 @@ async function checkRenderer(moduleURL, wrappedFixture, pointerFixture) {
     view.update(1, 4, true);
     check('the Arabic karaoke band sweeps right to left',
       /to left/.test(maskOf(arabicWords[0])));
+    const arabicDuet = parseLyrics(
+      '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">' +
+      '<body><div>' +
+      '<p begin="0s" end="2s" ttm:agent="v1"><span begin="0s" end="2s">يا حبيبي</span></p>' +
+      '<p begin="2s" end="4s" ttm:agent="v2"><span begin="2s" end="4s">يا روحي</span></p>' +
+      '</div></body></tt>');
+    view.setLyrics(arabicDuet, 2.5, 4, true);
+    const duetPrimary = view.lineElements[0];
+    const duetAnswer = view.lineElements[1];
+    const duetPrimaryWords = [...duetPrimary.querySelectorAll('.lyrics-word')];
+    const duetAnswerWords = [...duetAnswer.querySelectorAll('.lyrics-word')];
+    const duetPrimaryBox = duetPrimary.getBoundingClientRect();
+    const duetAnswerBox = duetAnswer.getBoundingClientRect();
+    const trackBox = view.track.getBoundingClientRect();
+    check('an Arabic duet keeps the first voice right and aligns the answering voice left',
+      duetPrimary.dir === 'rtl' &&
+      !duetPrimary.classList.contains('is-duet') &&
+      getComputedStyle(duetPrimary).textAlign === 'right' &&
+      Math.abs(duetPrimaryBox.right - trackBox.right) < 2 &&
+      Math.abs(duetPrimaryWords[0].getBoundingClientRect().right - duetPrimaryBox.right) < 2 &&
+      duetAnswer.dir === 'rtl' &&
+      duetAnswer.classList.contains('is-duet') &&
+      getComputedStyle(duetAnswer).textAlign === 'left' &&
+      Math.abs(duetAnswerBox.left - trackBox.left) < 2 &&
+      Math.abs(duetAnswerWords[duetAnswerWords.length - 1].getBoundingClientRect().left - duetAnswerBox.left) < 2);
+    const arabicInterludeDuet = parseLyrics(
+      '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">' +
+      '<body><div>' +
+      '<p begin="8s" end="10s" ttm:agent="v1"><span begin="8s" end="10s">يا حبيبي</span></p>' +
+      '<p begin="18s" end="20s" ttm:agent="v2"><span begin="18s" end="20s">يا روحي</span></p>' +
+      '</div></body></tt>');
+    view.setLyrics(arabicInterludeDuet, 2, 20, true);
+    view.update(5, 20, true);
+    const introDotsBox = view.interludes[0].group.getBoundingClientRect();
+    const introTrackBox = view.track.getBoundingClientRect();
+    view.update(13, 20, true);
+    const answerDotsBox = view.interludes[1].group.getBoundingClientRect();
+    const answerTrackBox = view.track.getBoundingClientRect();
+    check('interlude dots match the upcoming line alignment for RTL and duets',
+      view.interludes[0].element.classList.contains('is-right') &&
+      getComputedStyle(view.interludes[0].element).justifyContent === 'flex-end' &&
+      introDotsBox.left > introTrackBox.left + introTrackBox.width / 2 &&
+      !view.interludes[1].element.classList.contains('is-right') &&
+      getComputedStyle(view.interludes[1].element).justifyContent !== 'flex-end' &&
+      answerDotsBox.right < answerTrackBox.left + answerTrackBox.width / 2);
     const latinRow = parseLyrics('<tt xmlns="http://www.w3.org/ns/ttml"><body><div>' +
       '<p begin="0s" end="4s"><span begin="0s" end="2s">Moonlight </span>' +
       '<span begin="2s" end="4s">shining</span></p></div></body></tt>');
@@ -1124,6 +1169,23 @@ async function checkRenderer(moduleURL, wrappedFixture, pointerFixture) {
     view.setInteractionEnabled(true);
     hoveringRow.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'touch' }));
     check('touch input cannot leave a sticky hover plate', hoverPlate.hidden);
+    let heldCall = null;
+    view.onLineHold = (heldIndex, heldLine, heldElement) => {
+      heldCall = { heldIndex, heldLine, heldElement };
+    };
+    hoverSeek = null;
+    hoveringRow.dispatchEvent(new PointerEvent('pointerdown', {
+      button: 0, isPrimary: true, pointerId: 12, pointerType: 'mouse', clientX: 50, clientY: 50
+    }));
+    await new Promise(resolve => setTimeout(resolve, 460));
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 12 }));
+    hoveringRow.dispatchEvent(new MouseEvent('click', { detail: 1 }));
+    check('holding a lyric invokes onLineHold with the source row and cancels seek',
+      heldCall !== null &&
+      heldCall.heldIndex === 1 &&
+      heldCall.heldElement === hoveringRow &&
+      hoverSeek === null);
+    view.onLineHold = null;
     view.onSeek = null;
     view.setLyrics(credited, 5.1, 10, false);
     return checks;

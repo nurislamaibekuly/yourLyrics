@@ -68,6 +68,18 @@ npm run test:loudness
 npm run test:updates
 ```
 
+## Lyrics Providers & Credits
+
+Thanks to the lyric databases and communities that power yourLyrics:
+
+- [LyricsFlow](https://trylyricsflow.com) — catalog & community TTML lyrics ([Discord](https://discord.gg/zXb7sTJrrq))
+- [Unison (Better Lyrics)](https://unison.betterlyrics.org) — community-synced lyrics & curator attribution ([Discord](https://discord.gg/UsHE3d5fWF))
+- [Better Lyrics](https://betterlyrics.org) — cached TTML & QQ Music lyrics
+- [Paxsenix](https://lyrics.paxsenix.org) — Apple Music & Musixmatch lyrics API
+- [LiriQo](https://api.liriqo-alfarrizi.my.id) — multi-provider lyrics aggregator
+- [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db) — open-source TTML lyrics repository
+- [LRCLIB](https://lrclib.net) — open-source synced & plain lyrics database
+
 ## License
 
 [GNU General Public License v3.0](LICENSE)
