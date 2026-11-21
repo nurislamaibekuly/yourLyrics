@@ -2041,15 +2041,44 @@ function seekTo(seconds) {
   }
 }
 
-progress.addEventListener('pointerdown', (event) => {
+function startProgressDrag(event) {
   if (!(state.durationSeconds > 0)) {
     return;
   }
   dragging = true;
-  progress.setPointerCapture(event.pointerId);
+  try {
+    progress.setPointerCapture(event.pointerId);
+  } catch {}
   position = positionFromPointer(event.clientX);
   render();
   scheduleTick();
+}
+
+progress.addEventListener('pointerdown', startProgressDrag);
+
+document.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || !(state.durationSeconds > 0) || dragging) {
+    return;
+  }
+  if (event.target === progress || progress.contains(event.target)) {
+    return;
+  }
+  if (event.target?.closest?.('button, a, input, .lyrics-line, .metadata-menu, .playback-controls, .volume-control, .sheet-backdrop')) {
+    return;
+  }
+  const style = getComputedStyle(progress);
+  if (style.display === 'none' || style.visibility === 'hidden' || style.pointerEvents === 'none') {
+    return;
+  }
+  const rect = progress.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return;
+  }
+  if (event.clientX >= rect.left - 8 && event.clientX <= rect.right + 8 &&
+      event.clientY >= rect.top - 10 && event.clientY <= rect.bottom + 10) {
+    event.preventDefault();
+    startProgressDrag(event);
+  }
 });
 
 progress.addEventListener('pointermove', (event) => {

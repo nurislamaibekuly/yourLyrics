@@ -838,6 +838,8 @@ body[data-ui-style="ios"].is-ipados-landscape.is-lyrics-hidden .lyrics-toggle.is
   width: var(--art-size);
   height: var(--progress-height);
   overflow: hidden;
+  z-index: 17;
+  -webkit-app-region: no-drag;
   border-radius: calc(var(--progress-height) / 2);
   background-color: rgba(255, 255, 255, 0.2423);
   /* Frosted-glass track: the backdrop under the bar is blurred and pushed in
@@ -885,6 +887,7 @@ body[data-ui-style="ios"].is-ipados-landscape.is-lyrics-hidden .lyrics-toggle.is
   line-height: 1;
   color: rgba(255, 255, 255, 0.15);
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
 }

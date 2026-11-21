@@ -288,7 +288,8 @@ body[data-ui-style="ios"] .ios-artwork-toggle {
   border: 0;
   border-radius: var(--art-radius);
   background: transparent;
-  z-index: 16;
+  z-index: 21;
+  -webkit-app-region: no-drag;
 }
 body[data-ui-style="ios"].is-lyrics-hidden .ios-artwork-toggle { display: none; }
 
