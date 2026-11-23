@@ -37,8 +37,8 @@ body[data-ui-style="ios"] {
      at every window size instead of drifting apart. */
   --ios-header-bottom: calc(8vh + var(--ios-cluster) * 0.174 + 8px);
   --ios-lyrics-clip-top: var(--ios-header-bottom);
-  --ios-inset: calc((100vw - var(--ios-width)) / 2 + var(--ios-width) * 0.10);
-  --ios-content: calc(var(--ios-width) * 0.80);
+  --ios-inset: calc((100vw - var(--ios-width)) / 2 + var(--ios-width) * 0.085);
+  --ios-content: calc(var(--ios-width) * 0.83);
   /* Once the window is wider than the phone column, the header cluster pins
      to the left content edge instead of floating in the middle, so the
      metadata row uses the widescreen space. Below that it stays centred. */
@@ -62,10 +62,10 @@ body[data-ui-style="ios"] {
      shorter than a row: the clip line crossed the row itself, and its upper
      half disappeared no matter how the mask faded. */
   --ios-line-advance: calc(var(--lyrics-font-size) * var(--lyrics-line-height) + var(--lyrics-line-spacing));
-  --ios-button: clamp(44px, 7.2vh, 61px);
-  --ios-play-button: clamp(52px, 8.1vh, 68px);
-  --ios-transport-center: 84.6vh;
-  --ios-transport-width: calc(var(--ios-cluster) * 0.71);
+  --ios-button: calc(var(--ios-cluster) * 0.135);
+  --ios-play-button: calc(var(--ios-cluster) * 0.16);
+  --ios-transport-center: 76.7vh;
+  --ios-transport-width: calc(var(--ios-cluster) * 0.816);
   /* The artwork keeps its phone inset while the column is centred, but pins
      flush to the content edge once the cluster is anchored there — otherwise
      the header row floats inboard of the progress bar and lyrics below. */
@@ -78,7 +78,7 @@ body[data-ui-style="ios"] {
   --artist-size: 15px;
   --ios-metadata-top: calc(var(--art-top) + (var(--art-size) - (var(--title-size) + var(--artist-size)) * 1.24 - 1px) / 2);
   --time-size: 12px;
-  --progress-top: 70.5vh;
+  --progress-top: 65.5vh;
   --progress-height: max(4px, 0.8vh);
   --lyrics-toggle-size: 44px;
 }
@@ -88,7 +88,13 @@ body[data-ui-style="ios"] {
    keeps a wide window at the same radius a 460px window would have instead
    of hitting the cap, and the flush state still uses square screen edges. */
 body[data-ui-style="ios"]:not(.is-window-flush) {
+  --window-radius: min(calc(var(--ios-cluster) * 0.14), 64px);
+}
+body[data-ui-variant="ipados"]:not(.is-window-flush) {
   --window-radius: min(calc(var(--ios-cluster) * 0.08), 64px);
+}
+body[data-ui-style="ios"]:not([data-ui-variant="ipados"]):not(.is-window-flush) .window-controls {
+  padding: 24px 18px 18px 30px;
 }
 
 body[data-ui-style="ios"]:not(.is-ipados-landscape) .player-column { transform: none; }
@@ -154,20 +160,20 @@ body[data-ui-style="ios"] .metadata-menu img { width: 17px; height: 17px; }
 body[data-ui-style="ios"] .metadata-menu:active { background: #ffffff14; }
 
 body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden {
-  --art-size: min(calc(var(--ios-width) * 0.77), 42vh);
+  --art-size: min(calc(var(--ios-width) * 0.855), 46vh);
   --art-left: calc(50vw - var(--art-size) / 2);
-  --art-top: calc(33.5vh - var(--art-size) / 2);
-  --art-radius: 4px;
-  --title-size: clamp(14px, 3.85vw, 18px);
-  --artist-size: var(--title-size);
+  --art-top: calc(31.1vh - var(--art-size) / 2);
+  --art-radius: 10px;
+  --title-size: clamp(18px, 4.9vw, 21px);
+  --artist-size: clamp(17px, 4.7vw, 20px);
 }
 body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden :is(.title, .artist) {
   left: var(--ios-inset);
   width: calc(var(--ios-content) - 40px);
 }
-body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .title { top: 64vh; }
-body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .artist { top: 66.2vh; }
-body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .metadata-menu { top: calc(66.5vh - 22px); }
+body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .title { top: 56.5vh; }
+body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .artist { top: 59.5vh; }
+body[data-ui-style="ios"]:not(.is-ipados-landscape).is-lyrics-hidden .metadata-menu { top: calc(58.5vh - 22px); }
 
 /* Keep lyric coordinates independent of the mask and transport visibility.
    The active row starts below the header and retains its top edge when it wraps. */
@@ -193,16 +199,16 @@ body[data-ui-style="ios"] .lyrics-mask {
       transparent 0%,
       transparent calc(var(--ios-lyrics-clip-top) + 8px),
       #000 calc(26.5vh + var(--lyrics-anchor-padding) + 4px),
-      #000 56vh,
-      rgba(0, 0, 0, var(--ios-mask-open)) 70vh,
+      #000 52vh,
+      rgba(0, 0, 0, var(--ios-mask-open)) 65vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 88vh,
       transparent 100vh);
   mask-image: linear-gradient(to bottom,
       transparent 0%,
       transparent calc(var(--ios-lyrics-clip-top) + 8px),
       #000 calc(26.5vh + var(--lyrics-anchor-padding) + 4px),
-      #000 56vh,
-      rgba(0, 0, 0, var(--ios-mask-open)) 70vh,
+      #000 52vh,
+      rgba(0, 0, 0, var(--ios-mask-open)) 65vh,
       rgba(0, 0, 0, var(--ios-mask-open)) 88vh,
       transparent 100vh);
 }
@@ -238,20 +244,22 @@ body[data-ui-style="ios"] .playback-controls {
   align-items: center;
   gap: 0;
 }
-body[data-ui-style="ios"] .playback-controls .aero-player { --player-size: var(--ios-button); --player-icon: 42px; }
+body[data-ui-style="ios"] .playback-controls .aero-player { --player-size: var(--ios-button); --player-icon: calc(var(--ios-cluster) * 0.097); }
 body[data-ui-style="ios"] .playback-controls [data-playback="toggle"] {
   --player-size: var(--ios-play-button);
-  --player-icon: 48px;
+  --player-icon: calc(var(--ios-cluster) * 0.132);
 }
-body[data-ui-style="ios"] .playback-controls .aero-skip { --skip-size: 35px; }
+body[data-ui-style="ios"] .playback-controls .aero-skip { --skip-size: calc(var(--ios-cluster) * 0.097); }
 
-body[data-ui-style="ios"] .lyrics-toggle {
+.ios-bottom-action,
+.ios-airplay-label { display: none; }
+
+body[data-ui-style="ios"] .lyrics-toggle,
+body[data-ui-style="ios"]:not([data-ui-variant="ipados"]) .ios-bottom-action {
   display: grid;
   position: fixed;
-  top: min(calc(96.6vh - 22px), calc(100vh - 50px));
+  top: min(calc(91.8vh - 20px), calc(100vh - 54px));
   bottom: auto;
-  left: calc(50vw + var(--ios-width) * 0.378 - 22px);
-  right: auto;
   width: 40px;
   height: 40px;
   place-items: center;
@@ -263,12 +271,53 @@ body[data-ui-style="ios"] .lyrics-toggle {
   opacity: 1;
   cursor: default;
   z-index: 16;
+  -webkit-app-region: no-drag;
+}
+body[data-ui-style="ios"] .lyrics-toggle {
+  left: calc(50vw - var(--ios-cluster) * 0.286 - 20px);
+  right: auto;
+}
+body[data-ui-style="ios"]:not([data-ui-variant="ipados"]) .ios-bottom-action--airplay {
+  left: calc(50vw - 20px);
+}
+body[data-ui-style="ios"]:not([data-ui-variant="ipados"]) .ios-bottom-action--queue {
+  left: calc(50vw + var(--ios-cluster) * 0.289 - 20px);
+}
+body[data-ui-style="ios"] .ios-bottom-action--airplay svg {
+  width: var(--ios-airplay-icon-width, calc(var(--ios-cluster) * 0.080));
+  height: auto;
+  display: block;
+}
+body[data-ui-style="ios"] .ios-bottom-action--queue svg {
+  width: calc(var(--ios-cluster) * 0.058);
+  height: auto;
+  display: block;
+}
+body[data-ui-style="ios"]:not([data-ui-variant="ipados"]).has-ios-airplay-label .ios-airplay-label {
+  display: block;
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: min(calc(95.4vh - 8px), calc(100vh - 22px));
+  text-align: center;
+  font-size: clamp(11.5px, 3.1vw, 13px);
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.56);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 16;
+}
+body[data-ui-style="ios"][data-ui-variant="ipados"] .lyrics-toggle {
+  top: min(calc(96.6vh - 22px), calc(100vh - 50px));
+  left: calc(50vw + var(--ios-width) * 0.378 - 22px);
 }
 /* The circle and the cut-out glyph share a mask layer. Resize only the glyph
    mask so its circular background keeps the same diameter. */
 body[data-ui-style="ios"] .lyrics-toggle-icon {
-  width: 28px;
-  height: 28px;
+  width: calc(var(--ios-cluster) * 0.10);
+  height: calc(var(--ios-cluster) * 0.10);
   border-radius: 50%;
   -webkit-mask-size: 100% 100%, 60% 60%;
   mask-size: 100% 100%, 60% 60%;
@@ -293,13 +342,13 @@ body[data-ui-style="ios"] .ios-artwork-toggle {
 }
 body[data-ui-style="ios"].is-lyrics-hidden .ios-artwork-toggle { display: none; }
 
-body[data-ui-style="ios"] :is(.time, .playback-controls) { transition: opacity 300ms ease, visibility 0s; }
+body[data-ui-style="ios"] :is(.time, .playback-controls, .lyrics-toggle, .ios-bottom-action, .ios-airplay-label) { transition: opacity 300ms ease, visibility 0s; }
 body[data-ui-style="ios"] .progress {
   transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
     border-radius 600ms cubic-bezier(0.22, 1, 0.36, 1), background-color 600ms ease,
     opacity 300ms ease, visibility 0s;
 }
-body[data-ui-style="ios"].is-ios-idle :is(.progress, .time, .playback-controls) {
+body[data-ui-style="ios"].is-ios-idle :is(.progress, .time, .playback-controls, .lyrics-toggle, .ios-bottom-action, .ios-airplay-label) {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -311,7 +360,7 @@ body[data-ui-style="ios"].is-ios-idle .lyrics-mask {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body[data-ui-style="ios"] :is(.artwork, .title, .artist, .metadata-menu, .lyrics, .lyrics-mask, .progress, .progress-fill, .time, .playback-controls) { transition: none; }
+  body[data-ui-style="ios"] :is(.artwork, .title, .artist, .metadata-menu, .lyrics, .lyrics-mask, .progress, .progress-fill, .time, .playback-controls, .lyrics-toggle, .ios-bottom-action, .ios-airplay-label) { transition: none; }
 }
 
 /* One shared composition contains the original video and its stretched clone.
@@ -470,12 +519,12 @@ body[data-ui-style="ios"].is-artwork-morphing .animated-artwork-composition {
   to { transform: scale(1); }
 }
 
-body[data-ui-variant="ipados"] .volume-control {
+body[data-ui-style="ios"] .volume-control {
   --volume-progress: 50%;
   display: flex;
   align-items: center;
   position: absolute;
-  top: calc(var(--ipad-volume-center, 86.6vh) - 20px);
+  top: calc(var(--ipad-volume-center, 86vh) - 20px);
   left: var(--ios-inset);
   width: var(--ios-content);
   height: 40px;
@@ -487,14 +536,14 @@ body[data-ui-variant="ipados"] .volume-control {
   transition: opacity 300ms ease, visibility 0s;
 }
 
-body[data-ui-variant="ipados"].is-ios-idle .volume-control {
+body[data-ui-style="ios"].is-ios-idle .volume-control {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition: opacity 300ms ease, visibility 0s 300ms;
 }
 
-body[data-ui-variant="ipados"] .volume-icon {
+body[data-ui-style="ios"] .volume-icon {
   height: 38px;
   width: auto;
   flex: none;
@@ -505,38 +554,38 @@ body[data-ui-variant="ipados"] .volume-icon {
 
 /* The speaker SVGs carry internal horizontal viewBox padding; trim it so the
    outer glyphs align flush with the progress bar's left and right edges. */
-body[data-ui-variant="ipados"] .volume-icon--min {
+body[data-ui-style="ios"] .volume-icon--min {
   margin-left: -7px;
   margin-right: -8px;
 }
 
-body[data-ui-variant="ipados"] .volume-icon--max {
+body[data-ui-style="ios"] .volume-icon--max {
   margin-left: -12px;
   margin-right: -4px;
 }
 
-body[data-ui-variant="ipados"] .volume-icon.is-bouncing .speaker-bounce-1 {
+body[data-ui-style="ios"] .volume-icon.is-bouncing .speaker-bounce-1 {
   animation:
     speaker-bounce-part1 0.2s ease-in-out 0s forwards,
     speaker-bounce-part2 0.2s ease-in-out 0.2s forwards,
     speaker-bounce-part3 0.2s ease-in-out 0.4s forwards;
   transform-origin: center;
 }
-body[data-ui-variant="ipados"] .volume-icon.is-bouncing .speaker-bounce-2 {
+body[data-ui-style="ios"] .volume-icon.is-bouncing .speaker-bounce-2 {
   animation:
     speaker-bounce-part1 0.2s ease-in-out 0.05s forwards,
     speaker-bounce-part2 0.2s ease-in-out 0.25s forwards,
     speaker-bounce-part3 0.2s ease-in-out 0.45s forwards;
   transform-origin: center;
 }
-body[data-ui-variant="ipados"] .volume-icon.is-bouncing .speaker-bounce-3 {
+body[data-ui-style="ios"] .volume-icon.is-bouncing .speaker-bounce-3 {
   animation:
     speaker-bounce-part1 0.2s ease-in-out 0.1s forwards,
     speaker-bounce-part2 0.2s ease-in-out 0.3s forwards,
     speaker-bounce-part3 0.2s ease-in-out 0.5s forwards;
   transform-origin: center;
 }
-body[data-ui-variant="ipados"] .volume-icon.is-bouncing .speaker-bounce-4 {
+body[data-ui-style="ios"] .volume-icon.is-bouncing .speaker-bounce-4 {
   animation:
     speaker-bounce-part1 0.2s ease-in-out 0.15s forwards,
     speaker-bounce-part2 0.2s ease-in-out 0.35s forwards,
@@ -544,7 +593,7 @@ body[data-ui-variant="ipados"] .volume-icon.is-bouncing .speaker-bounce-4 {
   transform-origin: center;
 }
 
-body[data-ui-variant="ipados"] .volume-slider {
+body[data-ui-style="ios"] .volume-slider {
   flex: 1;
   height: var(--progress-height);
   border-radius: calc(var(--progress-height) / 2);
@@ -559,14 +608,14 @@ body[data-ui-variant="ipados"] .volume-slider {
     background-color 600ms ease;
 }
 
-body[data-ui-variant="ipados"] .volume-slider:hover,
-body[data-ui-variant="ipados"] .volume-control.is-dragging .volume-slider {
+body[data-ui-style="ios"] .volume-slider:hover,
+body[data-ui-style="ios"] .volume-control.is-dragging .volume-slider {
   transform: scaleY(2);
   border-radius: var(--progress-height) / calc(var(--progress-height) / 2);
   background-color: rgba(255, 255, 255, 0.34);
 }
 
-body[data-ui-variant="ipados"] .volume-slider-fill {
+body[data-ui-style="ios"] .volume-slider-fill {
   width: var(--volume-progress, 50%);
   height: 100%;
   background-color: #ffffff73;
@@ -608,26 +657,7 @@ body[data-ui-variant="ipados"].is-lyrics-hidden .lyrics-toggle-icon {
   mask-size: 66% 66%;
 }
 
-/* iPadOS Portrait: keeps the iOS layout and 18px clock gap as-is, only
-   shifting the transport up to fit the volume bar. */
-body[data-ui-variant="ipados"]:not(.is-ipados-landscape) {
-  --ios-transport-center: 80.5vh;
-  --ios-transport-width: calc(var(--ios-cluster) * 0.58);
-  --ipad-volume-center: 88.8vh;
-}
-body[data-ui-variant="ipados"]:not(.is-ipados-landscape).is-bleed-artwork.is-lyrics-hidden:not(.is-tall-animated-art):not(.is-wide-animated-art) :is(.artwork, .artwork-video) {
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 70vh;
-  border-radius: 0;
-  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-  --bleed-fade: 1;
-  --bleed-fade-x: 0;
-  transform: scale(1);
-}
-
-/* iPadOS Landscape: once the window is wider than it is tall, the cover,
+/* iPadOS uses the two-column landscape layout at all window sizes: the cover,
    metadata, scrubber, transport, and volume stack into the left column while
    the lyrics occupy the right half. */
 body[data-ui-style="ios"].is-ipados-landscape {

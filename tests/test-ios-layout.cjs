@@ -119,25 +119,25 @@ async function run() {
         return { width:innerWidth, height:innerHeight, art:rect('.artwork'), title:rect('.title'),
           artist:rect('.artist'), progress:rect('.progress'), play:rect('[data-playback="toggle"]'),
           previous:rect('[data-playback="previous"]'), next:rect('[data-playback="next"]'),
-          icon:getComputedStyle(document.querySelector('[data-playback="toggle"]')).getPropertyValue('--player-icon').trim() };
+          icon:rect('[data-playback="toggle"] svg').width };
       })()`);
       const near = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < .005,
         `${label}: actual=${actual}, expected=${expected}`);
       // Static covers retain their original paused scale and album layout.
-      near(layout.art.width / layout.width, .5775, 'Paused artwork width');
+      near(layout.art.width / layout.width, .64125, 'Paused artwork width');
       near(layout.art.centerX / layout.width, .5, 'Artwork horizontal center');
-      near(layout.art.centerY / layout.height, .335, 'Artwork vertical center');
-      near(layout.title.y / layout.height, .64, 'Song title position');
-      near(layout.artist.y / layout.height, .662, 'Artist position');
-      near(layout.progress.x / layout.width, .10, 'Progress left inset');
-      near(layout.progress.width / layout.width, .80, 'Progress width');
-      near(layout.progress.y / layout.height, .705, 'Progress vertical position');
-      near(layout.play.centerY / layout.height, .846, 'Play button vertical center');
+      near(layout.art.centerY / layout.height, .311, 'Artwork vertical center');
+      near(layout.title.y / layout.height, .565, 'Song title position');
+      near(layout.artist.y / layout.height, .595, 'Artist position');
+      near(layout.progress.x / layout.width, .085, 'Progress left inset');
+      near(layout.progress.width / layout.width, .83, 'Progress width');
+      near(layout.progress.y / layout.height, .655, 'Progress vertical position');
+      near(layout.play.centerY / layout.height, .767, 'Play button vertical center');
       near(layout.play.centerX / layout.width, .5, 'Play button horizontal center');
-      near(layout.previous.centerX / layout.width, .263, 'Previous button center');
-      near(layout.next.centerX / layout.width, .737, 'Next button center');
+      near(layout.previous.centerX / layout.width, .228, 'Previous button center');
+      near(layout.next.centerX / layout.width, .772, 'Next button center');
       assert.ok(layout.play.width > layout.previous.width, 'Play button is larger than the skip buttons');
-      assert.equal(layout.icon, '48px');
+      near(layout.icon / layout.width, .132, 'Play icon ratio');
     };
     await checkAlbumGeometry();
     await capture('album');
@@ -225,7 +225,7 @@ async function run() {
       const mask = document.querySelector('.lyrics-mask');
       const style = getComputedStyle(mask);
       return parseFloat(style.getPropertyValue('--ios-mask-open')) === 0 &&
-        mask.getBoundingClientRect().top + innerHeight * .7 < document.querySelector('.progress').getBoundingClientRect().top;
+        mask.getBoundingClientRect().top + innerHeight * .65 < document.querySelector('.progress').getBoundingClientRect().top;
     })()`), 'Lyric mask fades to transparent above the scrubber');
     await capture('lyrics');
 
@@ -285,7 +285,7 @@ async function run() {
       assert.equal(commands.at(-1), action);
       await wait(150);
     };
-    const controlGap = await js(`({ x: Math.round(innerWidth * .15), y: Math.round(innerHeight * .78) })`);
+    const controlGap = await js(`({ x: Math.round(innerWidth * .36), y: Math.round(innerHeight * .767) })`);
     assert.equal(await js(`Boolean(document.elementFromPoint(${controlGap.x}, ${controlGap.y})?.closest('.lyrics'))`), false, 'Control-band gaps do not target the transparent lyrics layer');
     const seeksBeforeGap = seeks.length;
     win.webContents.sendInputEvent({ type: 'mouseMove', ...controlGap });

@@ -12,6 +12,7 @@ export { LiquidGlassSwitch } from './switch.js';
 export { prefersReducedMotion } from './spring.js';
 
 export { MenuView, LiquidGlassMenuView } from './menuview.js';
+export { createMenuMaterial, regularMenuOptics } from './menu-material.js';
 export { SheetView, LiquidGlassSheetView } from './sheetview.js';
 export { AlertView, LiquidGlassAlertView, alert, confirm, prompt } from './alertview.js';
 export { buildUpdateCard, presentUpdate } from './updateview.js';

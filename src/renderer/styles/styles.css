@@ -767,8 +767,8 @@ body[data-ui-style="ios"].is-ipados-landscape .lyrics-toggle.is-solarium-glass {
   opacity: 1;
   overflow: visible;
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.24),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+    0 12px 34px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 body:not([data-ui-style="ios"]):not([data-ui-style="tvos"]) .lyrics-toggle.is-solarium-glass {
@@ -829,6 +829,88 @@ body[data-ui-style="ios"].is-ipados-landscape.is-lyrics-hidden .lyrics-toggle.is
   background: rgba(255, 255, 255, 0.86);
   -webkit-mask: var(--lyrics-toggle-icon) no-repeat center / 40% 40%;
   mask: var(--lyrics-toggle-icon) no-repeat center / 40% 40%;
+}
+
+/* macOS top-right Solarium volume slider pill (AirPlay + divider + slider + speaker). */
+.macos-volume-control {
+  display: none;
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  height: 36px;
+  padding: 0 13px;
+  align-items: center;
+  gap: 11px;
+  border-radius: 999px;
+  background: transparent;
+  z-index: 21;
+  -webkit-app-region: no-drag;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow:
+    0 12px 34px rgba(0, 0, 0, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body:not([data-ui-style="ios"]):not([data-ui-style="tvos"]) .macos-volume-control.is-solarium-glass {
+  display: flex;
+}
+
+.macos-volume-control.is-solarium-glass:has([data-solarium-fallback="true"]) {
+  background: rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+.solarium-macos-volume__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.macos-volume-airplay,
+.macos-volume-divider,
+.macos-volume-slider-host,
+.macos-volume-speaker {
+  position: relative;
+  z-index: 1;
+  flex: none;
+}
+
+.macos-volume-airplay {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.macos-volume-airplay svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.macos-volume-divider {
+  width: 1px;
+  height: 17px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.macos-volume-slider-host {
+  width: 102px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.macos-volume-speaker {
+  width: 21px;
+  height: 15px;
+  color: rgba(255, 255, 255, 0.92);
+  display: block;
+  pointer-events: none;
 }
 
 .progress {
@@ -938,6 +1020,61 @@ body[data-ui-style="ios"].is-ipados-landscape.is-lyrics-hidden .lyrics-toggle.is
    so prev/next grow with the play glyph instead of staying pinned. */
 .playback-controls .aero-skip {
   --skip-size: calc(var(--player-size) * 0.44);
+}
+
+.macos-transport-aux {
+  --aux-size: max(24px, 3.4vh);
+  position: absolute;
+  top: 50%;
+  width: var(--aux-size);
+  height: var(--aux-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-app-region: no-drag;
+  transform: translateY(-50%) scale(1);
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.macos-transport-aux--shuffle {
+  left: calc(var(--aux-size) * -0.18);
+}
+
+.macos-transport-aux--repeat {
+  right: calc(var(--aux-size) * -0.18);
+}
+
+.macos-transport-aux svg {
+  width: calc(var(--aux-size) * 0.48);
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+
+.macos-transport-aux:hover,
+.macos-transport-aux.is-active {
+  background-color: rgba(255, 255, 255, 0.1333);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.macos-transport-aux:active {
+  background-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-50%) scale(0.88);
+}
+
+body:is([data-ui-style="ios"]:not([data-ui-variant="ipados"]), [data-ui-style="tvos"]) .macos-transport-aux {
+  display: none;
 }
 
 /* Busy blocks repeated commands, but is not an unavailable player. Keep the

@@ -19,6 +19,10 @@ const TAP_CONTRACT_DELAY = 200;
 
 export class LiquidGlassSlider {
   constructor(options = {}) {
+    this.controlHeight = options.height ?? HEIGHT;
+    this.trackHeight = options.trackHeight ?? TRACK_HEIGHT;
+    this.contractedSize = options.contractedSize ?? CONTRACTED;
+    this.expandedSize = options.expandedSize ?? EXPANDED;
     this.minimumValue = options.minimumValue ?? 0;
     this.maximumValue = options.maximumValue ?? 1;
     this.isContinuous = options.isContinuous !== false;
@@ -46,7 +50,7 @@ export class LiquidGlassSlider {
     Object.assign(this.element.style, {
       position: 'relative',
       width: '100%',
-      height: `${HEIGHT}px`,
+      height: `${this.controlHeight}px`,
       touchAction: 'none',
       userSelect: 'none',
       cursor: 'default',
@@ -60,7 +64,7 @@ export class LiquidGlassSlider {
     this.track = document.createElement('div');
     Object.assign(this.track.style, {
       position: 'absolute',
-      borderRadius: `${TRACK_HEIGHT / 2}px`,
+      borderRadius: `${this.trackHeight / 2}px`,
       background: this.maximumTrackTintColor,
       pointerEvents: 'none',
       transition: 'background-color 200ms ease',
@@ -92,20 +96,20 @@ export class LiquidGlassSlider {
       sourceBounds: this._glassSourceBounds,
       onCapture: this._glassOnCapture,
       backgroundLayers: [this.track, this.fill],
-      cornerRadius: EXPANDED.height / 2,
+      cornerRadius: this.expandedSize.height / 2,
     });
 
     this.glass = deferGlass ? null : createGlass();
 
     this.thumb = new ThumbMorph({
       container: this.element,
-      controlHeight: HEIGHT,
+      controlHeight: this.controlHeight,
       contracted: this.contractedThumb,
       glass: this.glass,
       createGlass,
       deferGlass,
-      contractedSize: CONTRACTED,
-      expandedSize: EXPANDED,
+      contractedSize: this.contractedSize,
+      expandedSize: this.expandedSize,
     });
 
     this.element.append(this.track, this.fill, this.contractedThumb);
@@ -123,18 +127,18 @@ export class LiquidGlassSlider {
   trackRect() {
     return {
       x: 0,
-      y: (HEIGHT - TRACK_HEIGHT) / 2,
+      y: (this.controlHeight - this.trackHeight) / 2,
       width: this.element.clientWidth,
-      height: TRACK_HEIGHT,
+      height: this.trackHeight,
     };
   }
 
   get minThumbCenterX() {
-    return CONTRACTED.width / 2;
+    return this.contractedSize.width / 2;
   }
 
   get maxThumbCenterX() {
-    return Math.max(this.element.clientWidth - CONTRACTED.width / 2, this.minThumbCenterX);
+    return Math.max(this.element.clientWidth - this.contractedSize.width / 2, this.minThumbCenterX);
   }
 
   get thumbCenterRange() {
@@ -233,13 +237,13 @@ export class LiquidGlassSlider {
 
   updateTrackLayout() {
     const track = this.trackRect();
-    const centerY = HEIGHT / 2;
+    const centerY = this.controlHeight / 2;
 
     // Rubber band: the track slides with the thumb and thins out while the
     // thumb is being pulled past an end. Same formula as the UIKit control.
     const horizontalOffset = this.rubberBandOffset / 4 * 3 - Math.abs(this.rubberBandOffset) / 4;
     const heightShrink = Math.abs(this.rubberBandOffset) / 3;
-    const effectiveHeight = Math.max(2, TRACK_HEIGHT - heightShrink);
+    const effectiveHeight = Math.max(2, this.trackHeight - heightShrink);
 
     Object.assign(this.track.style, {
       left: `${track.x + horizontalOffset}px`,

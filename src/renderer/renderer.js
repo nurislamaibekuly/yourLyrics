@@ -283,10 +283,18 @@ let fontFamily = 'sf-pro'; // settings: key into fontFamilies
 let theme = 'system'; // settings: 'system' | 'light' | 'dark'
 let uiStyle = 'macos';
 let uiScale = 1;
+let iosAirplayIcon = 'macbook';
+let iosAirplayLabelMode = 'off';
+let iosAirplayCustomLabel = '';
 let disableSolarium = false;
 let solariumDisabledForSession = false;
 let metadataMenu = null;
 let lyricsToggleGlass = null;
+let macosVolumeGlass = null;
+let macosVolumeSlider = null;
+let macosVolumeValue = 0.85;
+const macosVolumeControl = document.querySelector('.macos-volume-control');
+const macosVolumeSliderHost = document.querySelector('.macos-volume-slider-host');
 let solariumModule = null;
 let solariumModulePromise = null;
 let solariumStylesheetPromise = null;
@@ -872,15 +880,13 @@ artworkVideo.addEventListener('error', () => {
 // side strips.
 function animatedArtAspect() {
   return document.body.dataset.uiStyle === 'ios' &&
+    !isIpadLandscape() &&
     window.innerWidth <= window.innerHeight ? 'tall' : 'square';
 }
 
-// iPadOS splits into a cover column and a lyric column once the window is
-// wider than it is tall. That layout keeps the ordinary square cover, so it
-// never takes over the window with extended motion artwork.
+// iPadOS always uses the two-column tablet layout.
 function isIpadLandscape() {
-  return document.body.dataset.uiVariant === 'ipados' &&
-    window.innerWidth > window.innerHeight;
+  return document.body.dataset.uiVariant === 'ipados';
 }
 
 function syncIpadOrientation() {
@@ -1137,48 +1143,102 @@ if (lyricsToggle) {
 
 document.querySelector('.ios-artwork-toggle').addEventListener('click', () => setLyricsVisible(false));
 
-// The iPadOS volume bar is a purely visual control: dragging updates its fill
-// and triggers the min/max speaker bounce without touching system audio.
+for (const auxBtn of document.querySelectorAll('.macos-transport-aux')) {
+  auxBtn.addEventListener('click', () => {
+    auxBtn.classList.toggle('is-active');
+  });
+}
+
 const volumeControl = document.querySelector('.volume-control');
 const volumeSlider = document.querySelector('.volume-slider');
+let iosVolumeDragging = false;
+
+function applyVolumeFraction(fraction, { fromUser = false, source = null } = {}) {
+  const clamped = Math.min(1, Math.max(0, Number(fraction) || 0));
+  macosVolumeValue = clamped;
+  if (volumeControl) {
+    volumeControl.style.setProperty('--volume-progress', `${(clamped * 100).toFixed(2)}%`);
+  }
+  if (source !== 'macos' && macosVolumeSlider && !macosVolumeSlider.isDragging) {
+    macosVolumeSlider.setValue(clamped, false);
+    macosVolumeGlass?.requestDraw();
+  }
+  if (fromUser && typeof window.app?.setVolume === 'function') {
+    window.app.setVolume(clamped);
+  }
+}
+
+function syncSystemVolume() {
+  if (iosVolumeDragging || macosVolumeSlider?.isDragging || macosVolumeSlider?.isThumbExpanded) {
+    return;
+  }
+  if (typeof window.app?.requestVolume === 'function') {
+    window.app.requestVolume();
+  }
+}
+
+if (typeof window.app?.onVolumeChanged === 'function') {
+  window.app.onVolumeChanged(vol => {
+    if (typeof vol === 'number' && Number.isFinite(vol)) {
+      if (!iosVolumeDragging && !macosVolumeSlider?.isDragging && !macosVolumeSlider?.isThumbExpanded) {
+        applyVolumeFraction(vol, { fromUser: false });
+      }
+    }
+  });
+}
+
 if (volumeControl && volumeSlider) {
-  let volumeDragging = false;
   let lastVolumeFraction = 0.5;
   const minIcon = volumeControl.querySelector('.volume-icon--min');
   const maxIcon = volumeControl.querySelector('.volume-icon--max');
-  const updateVolumeFromEvent = event => {
+  const bounceTimers = new WeakMap();
+  const triggerVolumeBounce = icon => {
+    if (!icon) return;
+    clearTimeout(bounceTimers.get(icon));
+    icon.classList.remove('is-bouncing');
+    void icon.getBoundingClientRect();
+    icon.classList.add('is-bouncing');
+    bounceTimers.set(icon, setTimeout(() => {
+      icon.classList.remove('is-bouncing');
+    }, 620));
+  };
+  const updateVolumeFromEvent = (event, fromPointerDown = false) => {
     const rect = volumeSlider.getBoundingClientRect();
     if (!rect.width) return;
     const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    volumeControl.style.setProperty('--volume-progress', `${(fraction * 100).toFixed(2)}%`);
-    if (fraction <= 0 && lastVolumeFraction > 0 && minIcon) {
-      minIcon.classList.remove('is-bouncing');
-      requestAnimationFrame(() => minIcon.classList.add('is-bouncing'));
-    } else if (fraction >= 1 && lastVolumeFraction < 1 && maxIcon) {
-      maxIcon.classList.remove('is-bouncing');
-      requestAnimationFrame(() => maxIcon.classList.add('is-bouncing'));
+    applyVolumeFraction(fraction, { fromUser: true, source: 'ios' });
+    if (fraction <= 0 && (lastVolumeFraction > 0 || fromPointerDown)) {
+      triggerVolumeBounce(minIcon);
+    } else if (fraction >= 1 && (lastVolumeFraction < 1 || fromPointerDown)) {
+      triggerVolumeBounce(maxIcon);
     }
     lastVolumeFraction = fraction;
   };
   volumeSlider.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
-    volumeDragging = true;
+    iosVolumeDragging = true;
     volumeControl.classList.add('is-dragging');
     volumeSlider.setPointerCapture?.(event.pointerId);
-    updateVolumeFromEvent(event);
+    updateVolumeFromEvent(event, true);
   });
   volumeSlider.addEventListener('pointermove', event => {
-    if (!volumeDragging) return;
+    if (!iosVolumeDragging) return;
     updateVolumeFromEvent(event);
   });
   const endVolumeDrag = () => {
-    if (!volumeDragging) return;
-    volumeDragging = false;
+    if (!iosVolumeDragging) return;
+    iosVolumeDragging = false;
     volumeControl.classList.remove('is-dragging');
   };
   volumeSlider.addEventListener('pointerup', endVolumeDrag);
   volumeSlider.addEventListener('pointercancel', endVolumeDrag);
 }
+
+syncSystemVolume();
+window.addEventListener('focus', syncSystemVolume);
+setInterval(() => {
+  if (!document.hidden) syncSystemVolume();
+}, 2500);
 
 // The blur on unsung lines comes from --line-blur written per line by
 // LyricsView; the !important override on the container zeroes it wholesale.
@@ -1347,6 +1407,8 @@ const switchUiStyle = createUiStyleSwitcher(document.querySelector('.stage'), (v
   iosControls?.refresh();
   syncSolariumLyricsToggle();
   if (lyricsToggleGlass) requestAnimationFrame(refreshLyricsToggleGlass);
+  syncSolariumMacosVolume();
+  if (macosVolumeGlass) requestAnimationFrame(refreshMacosVolumeGlass);
   document.body.classList.toggle('is-bleed-artwork',
     bleedArtwork && (value === 'macos' || value === 'ipados'));
   frostedDirty = true;
@@ -1359,6 +1421,197 @@ const switchUiStyle = createUiStyleSwitcher(document.querySelector('.stage'), (v
   lyricsView.stepMotion(performance.now(), true);
   return resize;
 });
+
+const iosAirplayIconSpecs = {
+  macbook: {
+    value: 'macbook',
+    label: 'MacBook',
+    viewBox: '0 0 55.679 31.848',
+    width: 'calc(var(--ios-cluster) * 0.080)',
+    path: 'M0.000 29.164C0.000 30.630 1.225 31.848 2.675 31.848L53.004 31.848C54.470 31.848 55.679 30.630 55.679 29.164C55.679 27.682 54.470 26.465 53.004 26.465L49.234 26.465L49.234 4.871C49.234 1.725 47.477 0.000 44.330 0.000L11.348 0.000C8.314 0.000 6.445 1.725 6.445 4.871L6.445 26.465L2.675 26.465C1.225 26.465 0.000 27.682 0.000 29.164ZM10.924 26.465L10.924 6.036C10.924 4.957 11.433 4.463 12.481 4.463L43.198 4.463C44.246 4.463 44.771 4.957 44.771 6.036L44.771 26.465Z',
+  },
+  airpods: {
+    value: 'airpods',
+    label: 'AirPods',
+    viewBox: '2.157 2.237 52.904 34.248',
+    width: 'calc(var(--ios-cluster) * 0.072)',
+    masks: [
+      {
+        id: 'ios-airpods-stem-mask',
+        cutouts: [
+          {
+            d: 'M19.516 0.000C15.583 -0.023 11.220 1.831 8.368 5.729C7.415 6.999 5.774 9.950 5.829 12.599L10.304 23.294C16.361 23.723 20.225 22.693 23.031 21.012C26.742 18.781 29.567 15.145 29.567 10.144C29.567 3.933 25.047 0.039 19.516 0.000Z',
+          },
+          {
+            d: 'M37.703 0.000C32.172 0.039 27.652 3.933 27.652 10.144C27.652 15.145 30.476 18.781 34.187 21.012C36.993 22.693 40.857 23.723 46.914 23.294L51.389 12.599C51.444 9.950 49.804 6.999 48.850 5.729C45.998 1.831 41.636 -0.023 37.703 0.000Z',
+          },
+          {
+            d: 'M9.306 25.396C13.554 25.396 17.300 22.481 17.300 17.433C17.300 12.783 13.069 8.291 7.806 8.291C3.025 8.291 0.000 12.123 0.000 16.167C0.000 21.636 4.620 25.396 9.306 25.396Z',
+          },
+          {
+            d: 'M47.912 25.396C52.598 25.396 57.218 21.636 57.218 16.167C57.218 12.123 54.193 8.291 49.412 8.291C44.149 8.291 39.918 12.783 39.918 17.433C39.918 22.481 43.665 25.396 47.912 25.396Z',
+          },
+        ],
+      },
+      {
+        id: 'ios-airpods-head-mask',
+        cutouts: [
+          {
+            d: 'M9.306 25.396C13.554 25.396 17.300 22.481 17.300 17.433C17.300 12.783 13.069 8.291 7.806 8.291C3.025 8.291 0.000 12.123 0.000 16.167C0.000 21.636 4.620 25.396 9.306 25.396Z',
+          },
+          {
+            d: 'M47.912 25.396C52.598 25.396 57.218 21.636 57.218 16.167C57.218 12.123 54.193 8.291 49.412 8.291C44.149 8.291 39.918 12.783 39.918 17.433C39.918 22.481 43.665 25.396 47.912 25.396Z',
+          },
+        ],
+      },
+    ],
+    layers: [
+      {
+        d: 'M16.710 36.485L18.184 36.485C19.610 36.485 20.565 35.681 20.565 34.268L20.565 18.594L14.305 19.964L14.305 34.268C14.305 35.681 15.267 36.485 16.710 36.485ZM40.509 36.485C41.951 36.485 42.913 35.681 42.913 34.268L42.913 19.964L36.653 18.594L36.653 34.268C36.653 35.681 37.608 36.485 39.034 36.485Z',
+        maskId: 'ios-airpods-stem-mask',
+      },
+      {
+        d: 'M19.492 2.237C16.188 2.214 12.546 3.773 10.168 7.053C9.426 8.026 8.125 10.355 8.064 12.082L12.940 21.158C17.109 21.158 19.837 20.333 21.883 19.101C25.052 17.194 27.346 14.209 27.346 10.144C27.346 5.217 23.892 2.268 19.492 2.237ZM20.722 10.545C20.257 10.948 19.574 10.887 19.201 10.398C18.820 9.932 18.867 9.279 19.341 8.906L21.884 6.786C22.342 6.413 23.010 6.445 23.390 6.933C23.755 7.391 23.741 8.044 23.266 8.425ZM37.726 2.237C33.326 2.268 29.873 5.217 29.873 10.144C29.873 14.209 32.166 17.194 35.336 19.101C37.381 20.333 40.109 21.158 44.278 21.158L49.154 12.082C49.093 10.355 47.792 8.026 47.050 7.053C44.672 3.773 41.031 2.214 37.726 2.237ZM36.496 10.545L33.952 8.425C33.478 8.044 33.463 7.391 33.828 6.933C34.209 6.445 34.876 6.413 35.335 6.786L37.878 8.906C38.352 9.279 38.399 9.932 38.017 10.398C37.644 10.887 36.962 10.948 36.496 10.545Z',
+        fillRule: 'evenodd',
+        maskId: 'ios-airpods-head-mask',
+      },
+      {
+        d: 'M9.306 23.239C12.486 23.239 15.143 21.189 15.143 17.433C15.143 13.961 11.865 10.448 7.806 10.448C4.316 10.448 2.157 13.190 2.157 16.167C2.157 20.353 5.696 23.239 9.306 23.239ZM8.480 20.204C7.851 20.747 6.880 20.198 5.755 18.816C4.631 17.459 4.261 16.440 4.874 15.919C5.540 15.353 6.490 15.879 7.622 17.300C8.737 18.666 9.116 19.668 8.480 20.204ZM47.912 23.239C51.522 23.239 55.061 20.353 55.061 16.167C55.061 13.190 52.902 10.448 49.412 10.448C45.353 10.448 42.075 13.961 42.075 17.433C42.075 21.189 44.732 23.239 47.912 23.239ZM48.739 20.204C48.103 19.668 48.481 18.666 49.596 17.300C50.729 15.879 51.678 15.353 52.345 15.919C52.957 16.440 52.588 17.459 51.464 18.816C50.339 20.198 49.367 20.747 48.739 20.204Z',
+        fillOpacity: '0.5',
+        fillRule: 'evenodd',
+      },
+    ],
+  },
+  airplay: {
+    value: 'airplay',
+    label: 'AirPlay',
+    viewBox: '0 0 38.263 37.637',
+    width: 'calc(var(--ios-cluster) * 0.056)',
+    path: 'M0.000 19.131C0.000 24.208 1.998 28.838 5.241 32.252C5.573 32.614 6.026 32.607 6.333 32.229L7.288 31.173C7.559 30.840 7.543 30.493 7.279 30.184C4.574 27.275 2.895 23.383 2.895 19.131C2.895 10.282 10.236 2.919 19.131 2.919C28.027 2.919 35.367 10.282 35.367 19.131C35.367 23.376 33.688 27.275 30.991 30.177C30.720 30.486 30.704 30.832 30.975 31.173L31.929 32.229C32.237 32.599 32.690 32.614 33.022 32.252C36.265 28.838 38.263 24.208 38.263 19.131C38.263 8.644 29.689 0.000 19.131 0.000C8.574 0.000 0.000 8.644 0.000 19.131ZM5.344 19.131C5.344 22.606 6.631 25.752 8.780 28.191C9.112 28.592 9.596 28.568 9.911 28.199L10.873 27.151C11.144 26.841 11.113 26.494 10.872 26.177C9.245 24.266 8.263 21.813 8.263 19.131C8.263 13.189 13.165 8.263 19.131 8.263C25.097 8.263 30.000 13.189 30.000 19.131C30.000 21.820 29.025 24.266 27.391 26.153C27.143 26.471 27.118 26.825 27.390 27.135L28.368 28.199C28.683 28.576 29.151 28.592 29.483 28.191C31.632 25.752 32.919 22.606 32.919 19.131C32.919 11.574 26.736 5.344 19.131 5.344C11.527 5.344 5.344 11.574 5.344 19.131ZM10.687 19.131C10.687 20.974 11.286 22.668 12.334 24.054C12.628 24.500 13.140 24.500 13.486 24.092L14.495 23.046C14.744 22.765 14.736 22.448 14.556 22.145C13.955 21.289 13.606 20.234 13.606 19.131C13.606 16.118 16.118 13.606 19.131 13.606C22.144 13.606 24.656 16.118 24.656 19.131C24.656 20.241 24.308 21.289 23.707 22.145C23.527 22.448 23.518 22.765 23.768 23.046L24.776 24.099C25.123 24.507 25.635 24.500 25.929 24.038C26.976 22.684 27.575 20.974 27.575 19.131C27.575 14.503 23.782 10.687 19.131 10.687C14.480 10.687 10.687 14.503 10.687 19.131ZM7.614 37.637L30.648 37.637C31.647 37.637 32.029 36.592 31.397 35.867L20.036 23.000C19.552 22.462 18.694 22.462 18.227 23.000L6.865 35.867C6.233 36.592 6.616 37.637 7.614 37.637Z',
+  },
+};
+
+const iosAirplayLabelModes = [
+  { value: 'off', label: 'Off' },
+  { value: 'bluetooth', label: 'Bluetooth device' },
+  { value: 'handoff', label: 'iPhone \u2192 device' },
+  { value: 'hostname', label: 'Device name' },
+  { value: 'custom', label: 'Custom text' },
+];
+
+function setIosAirplayIcon(value) {
+  const spec = iosAirplayIconSpecs[value] || iosAirplayIconSpecs.macbook;
+  iosAirplayIcon = spec.value;
+  const button = document.querySelector('.ios-bottom-action--airplay');
+  const svg = button?.querySelector('svg');
+  if (button && svg) {
+    svg.setAttribute('viewBox', spec.viewBox);
+    const svgNs = 'http://www.w3.org/2000/svg';
+    const children = [];
+    const masks = spec.masks || (spec.mask ? [spec.mask] : []);
+    if (masks.length > 0) {
+      const defs = document.createElementNS(svgNs, 'defs');
+      for (const maskSpec of masks) {
+        const mask = document.createElementNS(svgNs, 'mask');
+        mask.setAttribute('id', maskSpec.id);
+        const rect = document.createElementNS(svgNs, 'rect');
+        rect.setAttribute('x', '-20');
+        rect.setAttribute('y', '-10');
+        rect.setAttribute('width', '100');
+        rect.setAttribute('height', '60');
+        rect.setAttribute('fill', 'white');
+        mask.append(rect);
+        for (const item of maskSpec.cutouts || []) {
+          const el = document.createElementNS(svgNs, 'path');
+          el.setAttribute('d', item.d);
+          el.setAttribute('fill', 'black');
+          if (item.transform) el.setAttribute('transform', item.transform);
+          if (item.strokeWidth) {
+            el.setAttribute('stroke', 'black');
+            el.setAttribute('stroke-width', item.strokeWidth);
+            el.setAttribute('stroke-linejoin', 'round');
+          }
+          mask.append(el);
+        }
+        defs.append(mask);
+      }
+      children.push(defs);
+    }
+    const layers = spec.layers || [{ d: spec.path }];
+    for (const layer of layers) {
+      const pathEl = document.createElementNS(svgNs, 'path');
+      pathEl.setAttribute('d', layer.d);
+      pathEl.setAttribute('fill', 'currentColor');
+      if (layer.transform) pathEl.setAttribute('transform', layer.transform);
+      if (layer.fillOpacity) pathEl.setAttribute('fill-opacity', layer.fillOpacity);
+      if (layer.fillRule) pathEl.setAttribute('fill-rule', layer.fillRule);
+      if (layer.maskId) pathEl.setAttribute('mask', `url(#${layer.maskId})`);
+      children.push(pathEl);
+    }
+    svg.replaceChildren(...children);
+    button.style.setProperty('--ios-airplay-icon-width', spec.width);
+  }
+  persistSettings();
+}
+
+let resolvedHostname = '';
+let resolvedBluetoothDevice = '';
+
+function refreshIosAirplayLabel() {
+  const mode = iosAirplayLabelMode;
+  const label = document.querySelector('.ios-airplay-label');
+  if (mode === 'off') {
+    document.body.classList.remove('has-ios-airplay-label');
+    if (label) label.textContent = '';
+    return;
+  }
+  document.body.classList.add('has-ios-airplay-label');
+  if (!label) return;
+
+  const render = () => {
+    if (mode === 'bluetooth') {
+      label.textContent = resolvedBluetoothDevice || resolvedHostname || 'Mac';
+    } else if (mode === 'handoff') {
+      label.textContent = `iPhone \u2192 ${resolvedHostname || 'Mac'}`;
+    } else if (mode === 'hostname') {
+      label.textContent = resolvedHostname || 'Mac';
+    } else if (mode === 'custom') {
+      label.textContent = iosAirplayCustomLabel.trim() || resolvedHostname || 'Mac';
+    }
+  };
+
+  render();
+
+  if (mode === 'bluetooth' && typeof window.app?.getBluetoothDevice === 'function') {
+    window.app.getBluetoothDevice().then(name => {
+      if (typeof name === 'string') {
+        resolvedBluetoothDevice = name.trim();
+        render();
+      }
+    }).catch(() => {});
+  }
+  if (!resolvedHostname && typeof window.app?.getHostname === 'function') {
+    window.app.getHostname().then(name => {
+      if (typeof name === 'string' && name) {
+        resolvedHostname = name;
+        render();
+      }
+    }).catch(() => {});
+  }
+}
+
+function setIosAirplayLabelMode(mode) {
+  const valid = iosAirplayLabelModes.some(m => m.value === mode) ? mode : 'off';
+  iosAirplayLabelMode = valid;
+  refreshIosAirplayLabel();
+  persistSettings();
+}
+
+function setIosAirplayCustomLabel(text) {
+  iosAirplayCustomLabel = typeof text === 'string' ? text : '';
+  refreshIosAirplayLabel();
+  persistSettings();
+}
 
 function setUiStyle(value, animate = true) {
   const next = normalizeUiStyle(value);
@@ -1517,6 +1770,9 @@ function persistSettings(immediate = false) {
         theme,
         uiStyle,
         uiScale,
+        iosAirplayIcon,
+        iosAirplayLabelMode,
+        iosAirplayCustomLabel,
         disableSolarium,
         loudnessGain,
         alwaysOnTop: document.body.classList.contains('is-window-pinned'),
@@ -1549,6 +1805,17 @@ function applyPersistedSettings() {
   setUiStyle(saved.uiStyle, false);
   if (Number.isFinite(saved.uiScale)) {
     setUiScale(saved.uiScale, false);
+  }
+  if (typeof saved.iosAirplayIcon === 'string') {
+    setIosAirplayIcon(saved.iosAirplayIcon);
+  }
+  if (typeof saved.iosAirplayCustomLabel === 'string') {
+    iosAirplayCustomLabel = saved.iosAirplayCustomLabel;
+  }
+  if (typeof saved.iosAirplayLabelMode === 'string') {
+    setIosAirplayLabelMode(saved.iosAirplayLabelMode);
+  } else if (saved.iosAirplayLabel === true) {
+    setIosAirplayLabelMode('handoff');
   }
   if (typeof saved.disableSolarium === 'boolean') {
     disableSolarium = saved.disableSolarium;
@@ -3178,6 +3445,36 @@ function buildSettingsContent() {
       weightRow,
       sheetMenuRow('Theme', themeOptions, theme, setTheme),
       sheetSwitchRow('Disable Solarium', disableSolarium, setDisableSolarium),
+      ...(uiStyle === 'ios'
+        ? (() => {
+            const customLabelRow = sheetTextRow(
+              'Custom device label',
+              iosAirplayCustomLabel,
+              setIosAirplayCustomLabel,
+              'AirPods Pro',
+              'text'
+            );
+            customLabelRow.hidden = iosAirplayLabelMode !== 'custom';
+            return [
+              sheetMenuRow(
+                'AirPlay icon',
+                Object.values(iosAirplayIconSpecs).map(({ value, label }) => ({ value, label })),
+                iosAirplayIcon,
+                setIosAirplayIcon
+              ),
+              sheetMenuRow(
+                'AirPlay label',
+                iosAirplayLabelModes,
+                iosAirplayLabelMode,
+                mode => {
+                  setIosAirplayLabelMode(mode);
+                  customLabelRow.hidden = mode !== 'custom';
+                }
+              ),
+              customLabelRow,
+            ];
+          })()
+        : []),
       sheetSwitchRow('Pin window (Always on Top)', document.body.classList.contains('is-window-pinned'), enabled => {
         if (typeof window.app?.window?.setAlwaysOnTop === 'function') {
           window.app.window.setAlwaysOnTop(enabled).catch(() => { });
@@ -4279,6 +4576,10 @@ function requestSolariumGlassDraw() {
     metadataMenu.requestDraw();
   }
   lyricsToggleGlass?.requestDraw();
+  macosVolumeGlass?.requestDraw();
+  if (macosVolumeSlider?.thumb?.morph > 0) {
+    macosVolumeSlider.thumb.glass?.requestDraw();
+  }
 }
 
 function refreshLyricsToggleGlass() {
@@ -4290,8 +4591,19 @@ function refreshLyricsToggleGlass() {
   lyricsToggleGlass.requestDraw();
 }
 
+function refreshMacosVolumeGlass() {
+  if (!macosVolumeGlass || !macosVolumeControl) return;
+  const rect = macosVolumeControl.getBoundingClientRect();
+  if (rect.height > 0) {
+    macosVolumeGlass.setCornerRadius(Math.round(rect.height / 2));
+  }
+  macosVolumeSlider?.layout();
+  macosVolumeGlass.requestDraw();
+}
+
 function refreshSolariumMetadataGeometry() {
   refreshLyricsToggleGlass();
+  refreshMacosVolumeGlass();
   requestSolariumGlassDraw();
 }
 
@@ -4655,36 +4967,26 @@ function syncSolariumLyricsToggle() {
   mountSolariumLyricsToggle(solariumModule);
 }
 
-function lyricsToggleMaterial(LiquidGlass) {
-  const base = LiquidGlass.regular();
-  return new LiquidGlass({
-    uniforms: {
-      ...base.uniforms,
-      glassThickness: 11,
-      refractiveIndex: 1.54,
-      dispersionStrength: 6,
-      glareDistanceRange: 20,
-      glareAngleConvergence: 0.28,
-      glareOppositeSideBias: 0.85,
-      glareIntensity: 0.16,
-      glareEdgeSharpness: -0.06,
-    },
-    backgroundTextureSizeCoefficient: 1,
-    backgroundTextureScaleCoefficient: 0.35,
-    backgroundTextureBlurRadius: 2.2,
-    backdropTone: () => [1.16, 1.04],
-    tintColor: () => [0.06, 0.08, 0.08, 0.12],
-  });
+function createDarkPlatterMaterial(solarium) {
+  const baseMaterial = solarium.createMenuMaterial('regular');
+  const material = Object.assign(Object.create(Object.getPrototypeOf(baseMaterial)), baseMaterial);
+  const resolveTint = baseMaterial.resolveTint.bind(baseMaterial);
+  const resolveTone = baseMaterial.resolveBackdropTone.bind(baseMaterial);
+  const resolveOptics = baseMaterial.resolveOptics.bind(baseMaterial);
+  material.resolveOptics = (_dark, geometry) => resolveOptics(true, geometry);
+  material.resolveBackdropTone = () => resolveTone(true);
+  material.resolveTint = () => resolveTint(true);
+  return material;
 }
 
 function mountSolariumLyricsToggle(solarium) {
   teardownLyricsToggleGlass();
   if (!lyricsToggle || !solarium) return;
-  const { LiquidGlass, LiquidGlassView } = solarium;
+  const { LiquidGlassView } = solarium;
   lyricsToggle.classList.add('is-solarium-glass');
   const rect = lyricsToggle.getBoundingClientRect();
   const radius = Math.round((rect.height || 44) / 2);
-  lyricsToggleGlass = new LiquidGlassView(lyricsToggleMaterial(LiquidGlass), {
+  lyricsToggleGlass = new LiquidGlassView(createDarkPlatterMaterial(solarium), {
     source: backdropCanvas?.isConnected ? backdropCanvas : null,
     sourceBounds: () => backdropCanvas.getBoundingClientRect(),
     onCapture: captureMenuScene,
@@ -4703,6 +5005,92 @@ function mountSolariumLyricsToggle(solarium) {
   lyricsToggleGlass.element.setAttribute('aria-hidden', 'true');
   lyricsToggle.prepend(lyricsToggleGlass.element);
   lyricsToggleGlass.requestDraw();
+}
+
+function shouldUseSolariumMacosVolume() {
+  if (solariumDisabledForSession || !macosVolumeControl || !macosVolumeSliderHost) return false;
+  const style = document.body.dataset.uiStyle;
+  return !style || style === 'macos';
+}
+
+function teardownMacosVolumeGlass() {
+  macosVolumeSlider?.destroy();
+  macosVolumeSlider = null;
+  macosVolumeGlass?.dispose();
+  macosVolumeGlass = null;
+  macosVolumeControl?.classList.remove('is-solarium-glass');
+}
+
+function syncSolariumMacosVolume() {
+  if (!shouldUseSolariumMacosVolume()) {
+    teardownMacosVolumeGlass();
+    return;
+  }
+  if (!solariumModule) {
+    macosVolumeControl.classList.add('is-solarium-glass');
+    return;
+  }
+  if (macosVolumeGlass && macosVolumeSlider) {
+    refreshMacosVolumeGlass();
+    return;
+  }
+  mountSolariumMacosVolume(solariumModule);
+}
+
+function mountSolariumMacosVolume(solarium) {
+  teardownMacosVolumeGlass();
+  if (!macosVolumeControl || !macosVolumeSliderHost || !solarium) return;
+  const { LiquidGlassView, LiquidGlassSlider } = solarium;
+  macosVolumeControl.classList.add('is-solarium-glass');
+  const rect = macosVolumeControl.getBoundingClientRect();
+  const radius = Math.round((rect.height || 36) / 2);
+  const source = backdropCanvas?.isConnected ? backdropCanvas : null;
+  const sourceBounds = () => backdropCanvas.getBoundingClientRect();
+
+  macosVolumeGlass = new LiquidGlassView(createDarkPlatterMaterial(solarium), {
+    source,
+    sourceBounds,
+    onCapture: captureMenuScene,
+    cornerRadius: radius,
+    pressInflate: 0,
+    interactive: false,
+  });
+  macosVolumeGlass.element.className = 'solarium-macos-volume__glass';
+  Object.assign(macosVolumeGlass.element.style, {
+    position: 'absolute',
+    inset: '0',
+    zIndex: '0',
+    pointerEvents: 'none',
+  });
+  macosVolumeGlass.element.setAttribute('aria-hidden', 'true');
+  macosVolumeControl.prepend(macosVolumeGlass.element);
+
+  macosVolumeSlider = new LiquidGlassSlider({
+    minimumValue: 0,
+    maximumValue: 1,
+    value: macosVolumeValue,
+    height: 22,
+    trackHeight: 5,
+    contractedSize: { width: 22, height: 13 },
+    expandedSize: { width: 34, height: 22 },
+    deferGlass: true,
+    source,
+    sourceBounds,
+    onCapture: captureMenuScene,
+    minimumTrackTintColor: 'rgba(255, 255, 255, 0.92)',
+    maximumTrackTintColor: 'rgba(255, 255, 255, 0.24)',
+    thumbTintColor: '#ffffff',
+  });
+  macosVolumeSlider.element.setAttribute('aria-label', 'Volume');
+  macosVolumeSlider.element.addEventListener('input', () => {
+    applyVolumeFraction(macosVolumeSlider.currentValue, { fromUser: true, source: 'macos' });
+    macosVolumeGlass?.requestDraw();
+  });
+  macosVolumeSliderHost.replaceChildren(macosVolumeSlider.element);
+  requestAnimationFrame(() => {
+    macosVolumeSlider?.layout();
+    macosVolumeGlass?.requestDraw();
+  });
 }
 
 function teardownMetadataMenu() {
@@ -4735,6 +5123,7 @@ function syncSolariumSheets() {
 function mountStandardMetadataMenu() {
   teardownMetadataMenu();
   teardownLyricsToggleGlass();
+  teardownMacosVolumeGlass();
   ensureSolariumStylesheet(false);
   syncSolariumSheets();
   metadataMenu = new MenuView(metadataMenuToggle, createMetadataMenuOptions());
@@ -4751,6 +5140,7 @@ async function syncSolariumMetadataControl() {
   // so it never flashes before the Solarium module finishes loading.
   metadataMenuToggle.classList.add('is-solarium-glass');
   syncSolariumLyricsToggle();
+  syncSolariumMacosVolume();
 
   // Mount the standard menu synchronously so the button is interactive right
   // away while Solarium loads, or if Solarium is unavailable in a build.
@@ -4771,6 +5161,7 @@ async function syncSolariumMetadataControl() {
     syncSolariumSheets();
     teardownMetadataMenu();
     syncSolariumLyricsToggle();
+    syncSolariumMacosVolume();
     // Only the icon is visible on the resting button (like Apple Music);
     // SolariumMenuView morphs out of the button into Liquid Glass on press.
     metadataMenuToggle.classList.add('is-solarium-glass');

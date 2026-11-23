@@ -7,7 +7,8 @@ An Apple Music-inspired desktop now-playing panel and word-synced lyrics overlay
 ![Desktop Showcase](images/showcase.png)
 
 <p align="center">
-  <img src="images/showcaseios.png" width="320" alt="iOS Showcase" />
+  <img src="images/showcaseiosplayer.png" width="320" alt="iOS Player Showcase" />
+  <img src="images/showcaseioslyrics.png" width="320" alt="iOS Lyrics Showcase" />
 </p>
 
 ## Download

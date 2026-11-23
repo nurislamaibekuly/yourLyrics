@@ -2,6 +2,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('app', {
   platform: process.platform,
+  getHostname: () => ipcRenderer.invoke('app:hostname'),
+  getBluetoothDevice: () => ipcRenderer.invoke('app:bluetooth-device'),
+  requestVolume: () => ipcRenderer.send('app:request-volume'),
+  onVolumeChanged: (callback) => {
+    if (typeof callback === 'function') {
+      ipcRenderer.on('app:volume-changed', (_event, vol) => callback(vol));
+    }
+  },
+  setVolume: (fraction) => {
+    if (Number.isFinite(fraction)) {
+      ipcRenderer.send('app:set-volume', fraction);
+    }
+  },
   relaunch: () => ipcRenderer.invoke('app:relaunch'),
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   versions: {

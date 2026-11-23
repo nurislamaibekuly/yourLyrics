@@ -120,6 +120,9 @@ function createWindowStyleController(screen, platform = process.platform) {
       if (maximized) win.maximize();
       if (fullscreen) await transition(win, 'enter-full-screen', () => win.setFullScreen(true));
     }
+    if (process.platform === 'darwin' && typeof win.setWindowButtonPosition === 'function') {
+      win.setWindowButtonPosition(portrait ? { x: 30, y: 24 } : { x: 19, y: 19 });
+    }
     state.portrait = portrait;
     return { ok: true };
   }

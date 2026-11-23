@@ -1,4 +1,6 @@
 const { app, BrowserWindow, Menu, clipboard, ClipboardItem, dialog, nativeImage, nativeTheme, ipcMain, shell, screen } = require('electron');
+const os = require('node:os');
+const { execFile } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const { createWindowStyleController } = require('./window/window-style');
@@ -406,7 +408,103 @@ function registerShareIpc() {
   });
 }
 
+function readConnectedBluetoothDevice() {
+  if (process.platform !== 'darwin') return Promise.resolve(null);
+  return new Promise(resolve => {
+    execFile('system_profiler', ['SPBluetoothDataType', '-json'], { timeout: 2500 }, (err, stdout) => {
+      if (err || !stdout) return resolve(null);
+      try {
+        const data = JSON.parse(stdout);
+        const sections = data?.SPBluetoothDataType;
+        if (!Array.isArray(sections)) return resolve(null);
+        for (const section of sections) {
+          const connected = section?.device_connected;
+          if (!Array.isArray(connected) || !connected.length) continue;
+          const entry = connected[0];
+          const name = entry && typeof entry === 'object' ? Object.keys(entry)[0] : null;
+          if (name) return resolve(name);
+        }
+      } catch {
+        // Ignore malformed system_profiler output.
+      }
+      resolve(null);
+    });
+  });
+}
+
+function readSystemVolume() {
+  if (process.platform === 'darwin') {
+    return new Promise(resolve => {
+      execFile('/usr/bin/osascript', ['-e', 'get volume settings'], { timeout: 1500 }, (err, stdout) => {
+        if (err || !stdout) return resolve(null);
+        if (/output muted\s*:\s*true/i.test(stdout)) return resolve(0);
+        const match = stdout.match(/output volume\s*:\s*(\d+)/i);
+        if (!match) return resolve(null);
+        const num = Number(match[1]);
+        resolve(Number.isFinite(num) ? Math.min(1, Math.max(0, num / 100)) : null);
+      });
+    });
+  }
+  if (process.platform === 'linux') {
+    return new Promise(resolve => {
+      execFile('pactl', ['get-sink-volume', '@DEFAULT_SINK@'], { timeout: 1500 }, (err, stdout) => {
+        if (err || !stdout) return resolve(null);
+        const match = stdout.match(/(\d+)%/);
+        if (!match) return resolve(null);
+        const num = Number(match[1]);
+        resolve(Number.isFinite(num) ? Math.min(1, Math.max(0, num / 100)) : null);
+      });
+    });
+  }
+  return Promise.resolve(null);
+}
+
+let pendingVolumePercent = null;
+let volumeWriteInFlight = false;
+
+function flushSystemVolumeWrite() {
+  if (volumeWriteInFlight || pendingVolumePercent === null) return;
+  const percent = pendingVolumePercent;
+  pendingVolumePercent = null;
+  volumeWriteInFlight = true;
+  const done = () => {
+    volumeWriteInFlight = false;
+    if (pendingVolumePercent !== null) {
+      flushSystemVolumeWrite();
+    }
+  };
+  if (process.platform === 'darwin') {
+    const script = percent <= 0
+      ? 'set volume output volume 0 with output muted'
+      : `set volume output volume ${percent} without output muted`;
+    execFile('/usr/bin/osascript', ['-e', script], { timeout: 1500 }, done);
+    return;
+  }
+  if (process.platform === 'linux') {
+    execFile('pactl', ['set-sink-volume', '@DEFAULT_SINK@', `${percent}%`], { timeout: 1500 }, done);
+    return;
+  }
+  done();
+}
+
+function writeSystemVolume(fraction) {
+  const num = Number(fraction);
+  if (!Number.isFinite(num)) return;
+  pendingVolumePercent = Math.round(Math.min(1, Math.max(0, num)) * 100);
+  flushSystemVolumeWrite();
+}
+
 function registerAppIpc() {
+  ipcMain.handle('app:hostname', () => os.hostname().replace(/\.local$/i, ''));
+  ipcMain.handle('app:bluetooth-device', () => readConnectedBluetoothDevice());
+  ipcMain.on('app:request-volume', event => {
+    readSystemVolume().then(vol => {
+      if (vol !== null && !event.sender.isDestroyed()) {
+        event.sender.send('app:volume-changed', vol);
+      }
+    });
+  });
+  ipcMain.on('app:set-volume', (_event, fraction) => writeSystemVolume(fraction));
   ipcMain.handle('app:relaunch', () => {
     app.relaunch();
     app.quit();
