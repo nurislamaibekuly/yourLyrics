@@ -27,6 +27,7 @@ concurrency:
 env:
   TARGET_REPO: ${{ github.repository }}
   TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
 
 jobs:
   # The release is created first so every build job can push its own assets
