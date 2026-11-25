@@ -1,6 +1,6 @@
 {
   "name": "yourlyrics",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "yourLyrics desktop app",
   "main": "src/main/index.js",
   "scripts": {
@@ -144,6 +144,11 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.11",
-    "hls.js": "^1.7.4"
+    "hangul-romanization": "^1.0.1",
+    "hls.js": "^1.7.4",
+    "ichkil": "^1.1.0",
+    "kuroshiro": "^1.2.1",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0",
+    "pinyin": "^4.0.0"
   }
 }

@@ -216,6 +216,8 @@ const remaining = document.querySelector('.time-remaining');
 const lyricsElement = document.querySelector('.lyrics');
 const noticeElement = document.querySelector('.lyrics-notice');
 const lyricsToggle = document.querySelector('.lyrics-toggle');
+const lyricsPill = document.querySelector('.lyrics-pill');
+const iosTranslateToggle = document.querySelector('.ios-translate-toggle');
 const metadataMenuToggle = document.querySelector('.metadata-menu');
 
 const idleState = {
@@ -290,6 +292,7 @@ let disableSolarium = false;
 let solariumDisabledForSession = false;
 let metadataMenu = null;
 let lyricsToggleGlass = null;
+let translateToggleGlass = null;
 let macosVolumeGlass = null;
 let macosVolumeSlider = null;
 let macosVolumeValue = 0.85;
@@ -315,6 +318,101 @@ let lyricsSearchGeneration = 0;
 let syncedLyricsSource = '';
 let syncedLyricsSyncer = '';
 let syncedLyricsSyncerUrl = '';
+let showPronunciation = false;
+let showTranslation = false;
+let currentAnnotationsKey = '';
+let currentAnnotations = null;
+let annotationsGeneration = 0;
+
+const TRANSLITERABLE_SCRIPT_RE = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\u4E00-\u9FFF\u3400-\u4DBF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+
+function hasTransliterableLyrics(lines) {
+  return Array.isArray(lines) && lines.some(line =>
+    line && !line.isCredit && typeof line.text === 'string' && TRANSLITERABLE_SCRIPT_RE.test(line.text)
+  );
+}
+
+function updateTranslatableLyricsState(lines, key = '') {
+  const translatable = hasTransliterableLyrics(lines);
+  document.body.classList.toggle('has-translatable-lyrics', translatable);
+  if (iosTranslateToggle) {
+    iosTranslateToggle.disabled = !translatable;
+    iosTranslateToggle.setAttribute('aria-disabled', translatable ? 'false' : 'true');
+  }
+  if (key !== currentAnnotationsKey) {
+    currentAnnotationsKey = key;
+    currentAnnotations = null;
+    annotationsGeneration += 1;
+  }
+  if (translatable && (showPronunciation || showTranslation)) {
+    void syncLyricsAnnotations();
+  } else {
+    lyricsView.setAnnotations(null, { showPronunciation: false, showTranslation: false });
+  }
+  syncSolariumLyricsToggle();
+}
+
+async function syncLyricsAnnotations() {
+  if (!document.body.classList.contains('has-translatable-lyrics')) {
+    lyricsView.setAnnotations(null, { showPronunciation: false, showTranslation: false });
+    return;
+  }
+  if (!showPronunciation && !showTranslation) {
+    lyricsView.setAnnotations(null, { showPronunciation: false, showTranslation: false });
+    return;
+  }
+  const hasNeededPron = !showPronunciation || Boolean(currentAnnotations?.hasPronunciation);
+  const hasNeededTrans = !showTranslation || Boolean(currentAnnotations?.hasTranslation);
+  if (currentAnnotations && hasNeededPron && hasNeededTrans) {
+    lyricsView.setAnnotations(currentAnnotations, { showPronunciation, showTranslation });
+    return;
+  }
+  if (typeof window.app?.lyrics?.getAnnotations !== 'function') {
+    return;
+  }
+  const rawLines = [];
+  const rawWordLines = [];
+  for (let i = 0; i < lyricsView.lines.length; i += 1) {
+    const line = lyricsView.lines[i];
+    if (!line || line.isCredit) continue;
+    rawLines.push(line.text || '');
+    const el = lyricsView.lineElements[i];
+    const chunks = el ? Array.from(el.querySelectorAll('.lyrics-main-text > .lyrics-emphasis')) : [];
+    rawWordLines.push(chunks.map(chunk => chunk.dataset.wordText || ''));
+  }
+  if (!rawLines.length) return;
+  const gen = ++annotationsGeneration;
+  const keyAtStart = currentAnnotationsKey;
+  try {
+    const result = await window.app.lyrics.getAnnotations(rawLines, rawWordLines, {
+      needPronunciation: showPronunciation,
+      needTranslation: showTranslation,
+    });
+    if (gen !== annotationsGeneration || keyAtStart !== currentAnnotationsKey) return;
+    const hasPronData = Boolean(
+      result?.pronunciations?.some(Boolean) ||
+      result?.wordPronunciations?.some(words => Array.isArray(words) && words.some(Boolean))
+    );
+    const hasTransData = Boolean(result?.translations?.some(Boolean));
+    const merged = {
+      pronunciations: hasPronData
+        ? result.pronunciations
+        : (currentAnnotations?.pronunciations || result?.pronunciations || []),
+      wordPronunciations: hasPronData
+        ? result.wordPronunciations
+        : (currentAnnotations?.wordPronunciations || result?.wordPronunciations || []),
+      translations: hasTransData
+        ? result.translations
+        : (currentAnnotations?.translations || result?.translations || []),
+      hasPronunciation: Boolean(currentAnnotations?.hasPronunciation || (showPronunciation && hasPronData)),
+      hasTranslation: Boolean(currentAnnotations?.hasTranslation || (showTranslation && hasTransData)),
+    };
+    if (merged.hasPronunciation || merged.hasTranslation) {
+      currentAnnotations = merged;
+    }
+    lyricsView.setAnnotations(merged, { showPronunciation, showTranslation });
+  } catch {}
+}
 // Duration corrections arrive after the first now-playing event often enough
 // that a one-second key would restart the same lookup. Keep the request
 // identity separate and tolerate small corrections instead.
@@ -1389,6 +1487,9 @@ const switchUiStyle = createUiStyleSwitcher(document.querySelector('.stage'), (v
   document.body.dataset.uiStyle = layout;
   if (value === 'ipados') document.body.dataset.uiVariant = 'ipados';
   else delete document.body.dataset.uiVariant;
+  showPronunciation = false;
+  showTranslation = false;
+  lyricsView.setAnnotations(null, { showPronunciation: false, showTranslation: false });
   syncIpadOrientation();
   progress.tabIndex = layout === 'ios' ? 0 : -1;
   if (prevBucket !== nextBucket) {
@@ -1941,6 +2042,7 @@ function setLocalLyrics(lines, name) {
   lyricsElement.setAttribute('aria-label', `Lyrics from ${name}`);
   setLyricsLoading(false);
   lyricsView.setLyrics(lines, lyricsClockPosition(), state.durationSeconds, state.playing);
+  updateTranslatableLyricsState(lyricsView.lines, `local:${name}:${lines.length}`);
   refreshLyricsSheetSource();
   syncBackdropPlayback();
 }
@@ -1983,9 +2085,10 @@ function updateLyrics() {
     lyricsView.clear();
     lyricsRenderedIdentity = '';
     lyricsRenderedContent = '';
+    updateTranslatableLyricsState([], '');
     syncedLyricsSource = '';
-  syncedLyricsSyncer = '';
-  syncedLyricsSyncerUrl = '';
+    syncedLyricsSyncer = '';
+    syncedLyricsSyncerUrl = '';
   }
   syncBackdropPlayback();
   setLyricsLoading(false);
@@ -2023,6 +2126,7 @@ function updateLyrics() {
       state.durationSeconds,
       state.playing
     );
+    updateTranslatableLyricsState(lyricsView.lines, `${key}:${content.length}`);
     if (!keepRows) void playerPolish.revealLyrics();
     syncBackdropPlayback();
   }).catch(() => {
@@ -4576,19 +4680,33 @@ function requestSolariumGlassDraw() {
     metadataMenu.requestDraw();
   }
   lyricsToggleGlass?.requestDraw();
+  translateToggleGlass?.requestDraw();
   macosVolumeGlass?.requestDraw();
   if (macosVolumeSlider?.thumb?.morph > 0) {
     macosVolumeSlider.thumb.glass?.requestDraw();
   }
 }
 
-function refreshLyricsToggleGlass() {
-  if (!lyricsToggleGlass || !lyricsToggle) return;
-  const rect = lyricsToggle.getBoundingClientRect();
-  if (rect.height > 0) {
-    lyricsToggleGlass.setCornerRadius(Math.round(rect.height / 2));
+function lyricsGlassHost() {
+  const style = document.body.dataset.uiStyle;
+  if (lyricsPill && (
+    (style === 'ios' && document.body.classList.contains('is-ipados-landscape')) ||
+    (style !== 'ios' && style !== 'tvos')
+  )) {
+    return lyricsPill;
   }
-  lyricsToggleGlass.requestDraw();
+  return lyricsToggle;
+}
+
+function refreshLyricsToggleGlass() {
+  const host = lyricsGlassHost();
+  if (lyricsToggleGlass && host) {
+    const rect = host.getBoundingClientRect();
+    if (rect.height > 0) {
+      lyricsToggleGlass.setCornerRadius(Math.round(rect.height / 2));
+    }
+    lyricsToggleGlass.requestDraw();
+  }
 }
 
 function refreshMacosVolumeGlass() {
@@ -4605,6 +4723,57 @@ function refreshSolariumMetadataGeometry() {
   refreshLyricsToggleGlass();
   refreshMacosVolumeGlass();
   requestSolariumGlassDraw();
+}
+
+const PRONUNCIATION_ICON = '<svg class="svg-filled" viewBox="0 0 44.281 41.676" aria-hidden="true"><path fill="currentColor" stroke="none" fill-rule="evenodd" clip-rule="evenodd" d="M13.003 41.676C14.199 41.676 15.117 41.127 16.570 39.840L23.228 33.980L34.936 33.980C40.849 33.980 44.281 30.487 44.281 24.638L44.281 9.342C44.281 3.493 40.849 0.000 34.936 0.000L9.345 0.000C3.429 0.000 0.000 3.487 0.000 9.342L0.000 24.638C0.000 30.493 3.574 33.980 9.128 33.980L10.250 33.980L10.250 38.588C10.250 40.497 11.276 41.676 13.003 41.676ZM14.067 36.819L14.067 31.319C14.067 30.092 13.522 29.634 12.383 29.634L9.540 29.634C6.037 29.634 4.347 27.867 4.347 24.443L4.347 9.537C4.347 6.125 6.037 4.361 9.540 4.361L34.741 4.361C38.232 4.361 39.931 6.125 39.931 9.537L39.931 24.443C39.931 27.867 38.232 29.634 34.741 29.634L22.944 29.634C21.700 29.634 21.112 29.857 20.224 30.751ZM10.102 19.325L17.251 19.325C18.002 19.325 18.593 18.707 18.593 17.953C18.593 17.225 18.002 16.607 17.251 16.607L10.102 16.607C9.366 16.607 8.785 17.232 8.785 17.953C8.785 18.707 9.374 19.325 10.102 19.325ZM21.392 19.325L34.142 19.325C34.907 19.325 35.496 18.707 35.496 17.953C35.496 17.225 34.907 16.607 34.142 16.607L21.392 16.607C20.656 16.607 20.075 17.232 20.075 17.953C20.075 18.707 20.663 19.325 21.392 19.325ZM10.102 24.493L13.193 24.493C13.937 24.493 14.535 23.861 14.535 23.129C14.535 22.367 13.937 21.761 13.193 21.761L10.102 21.761C9.366 21.761 8.785 22.374 8.785 23.129C8.785 23.861 9.374 24.493 10.102 24.493ZM17.331 24.493L26.400 24.493C27.143 24.493 27.739 23.861 27.739 23.129C27.739 22.367 27.143 21.761 26.400 21.761L17.331 21.761C16.595 21.761 16.014 22.374 16.014 23.129C16.014 23.861 16.603 24.493 17.331 24.493ZM30.526 24.493L34.142 24.493C34.900 24.493 35.496 23.861 35.496 23.129C35.496 22.367 34.900 21.761 34.142 21.761L30.526 21.761C29.787 21.761 29.206 22.374 29.206 23.129C29.206 23.861 29.795 24.493 30.526 24.493Z"/></svg>';
+const TRANSLATION_ICON = '<svg class="svg-filled" viewBox="0 0 44.281 41.676" aria-hidden="true"><path fill="currentColor" stroke="none" fill-rule="evenodd" clip-rule="evenodd" d="M13.003 41.676C14.199 41.676 15.117 41.127 16.570 39.840L23.228 33.980L34.936 33.980C40.849 33.980 44.281 30.487 44.281 24.638L44.281 9.342C44.281 3.493 40.849 0.000 34.936 0.000L9.345 0.000C3.429 0.000 0.000 3.487 0.000 9.342L0.000 24.638C0.000 30.493 3.574 33.980 9.128 33.980L10.250 33.980L10.250 38.588C10.250 40.497 11.276 41.676 13.003 41.676ZM14.067 36.819L14.067 31.319C14.067 30.092 13.522 29.634 12.383 29.634L9.540 29.634C6.037 29.634 4.347 27.867 4.347 24.443L4.347 9.537C4.347 6.125 6.037 4.361 9.540 4.361L34.741 4.361C38.232 4.361 39.931 6.125 39.931 9.537L39.931 24.443C39.931 27.867 38.232 29.634 34.741 29.634L22.944 29.634C21.700 29.634 21.112 29.857 20.224 30.751ZM16.057 26.111C17.057 26.111 17.706 25.582 18.038 24.368L19.068 21.284L25.198 21.284L26.240 24.368C26.557 25.579 27.209 26.111 28.210 26.111C29.407 26.111 30.145 25.402 30.145 24.273C30.145 23.927 30.061 23.516 29.863 22.941L25.219 10.050C24.694 8.487 23.651 7.726 22.095 7.726C20.579 7.726 19.594 8.479 19.044 10.050L14.398 22.941C14.217 23.516 14.133 23.927 14.133 24.270C14.133 25.405 14.867 26.111 16.057 26.111ZM19.908 18.305L22.024 11.623L22.240 11.623L24.355 18.305Z"/></svg>';
+
+let iosTranslateMenu = null;
+
+function buildTranslateMenuItems() {
+  return [
+    {
+      id: 'pronunciation',
+      label: showPronunciation ? 'Hide Pronunciation' : 'Show Pronunciation',
+      icon: PRONUNCIATION_ICON,
+    },
+    {
+      id: 'translation',
+      label: showTranslation ? 'Hide Translation' : 'Show Translation',
+      icon: TRANSLATION_ICON,
+    },
+  ];
+}
+
+function translateMenuPlacement() {
+  const style = document.body.dataset.uiStyle;
+  if (style === 'ios' && !document.body.classList.contains('is-ipados-landscape')) {
+    return 'top-start';
+  }
+  return 'top-end';
+}
+
+function createTranslateMenuOptions() {
+  return {
+    items: buildTranslateMenuItems(),
+    placement: translateMenuPlacement(),
+    width: 220,
+    onSelect: item => {
+      if (item.id === 'pronunciation') {
+        showPronunciation = !showPronunciation;
+        void syncLyricsAnnotations();
+      } else if (item.id === 'translation') {
+        showTranslation = !showTranslation;
+        void syncLyricsAnnotations();
+      }
+    },
+  };
+}
+
+function teardownTranslateMenu() {
+  iosTranslateMenu?.destroy();
+  iosTranslateMenu = null;
+  iosTranslateToggle?.classList.remove('is-solarium-glass');
 }
 
 function createMetadataMenuOptions() {
@@ -4949,6 +5118,10 @@ function teardownLyricsToggleGlass() {
   lyricsToggleGlass?.dispose();
   lyricsToggleGlass = null;
   lyricsToggle?.classList.remove('is-solarium-glass');
+  lyricsPill?.classList.remove('is-solarium-glass');
+  translateToggleGlass?.dispose();
+  translateToggleGlass = null;
+  iosTranslateToggle?.classList.remove('is-solarium-glass');
 }
 
 function syncSolariumLyricsToggle() {
@@ -4956,11 +5129,12 @@ function syncSolariumLyricsToggle() {
     teardownLyricsToggleGlass();
     return;
   }
+  const host = lyricsGlassHost();
   if (!solariumModule) {
-    lyricsToggle.classList.add('is-solarium-glass');
+    host?.classList.add('is-solarium-glass');
     return;
   }
-  if (lyricsToggleGlass) {
+  if (lyricsToggleGlass && lyricsToggleGlass.element.parentElement === host) {
     refreshLyricsToggleGlass();
     return;
   }
@@ -4981,18 +5155,19 @@ function createDarkPlatterMaterial(solarium) {
 
 function mountSolariumLyricsToggle(solarium) {
   teardownLyricsToggleGlass();
-  if (!lyricsToggle || !solarium) return;
+  const host = lyricsGlassHost();
+  if (!host || !solarium) return;
   const { LiquidGlassView } = solarium;
-  lyricsToggle.classList.add('is-solarium-glass');
-  const rect = lyricsToggle.getBoundingClientRect();
-  const radius = Math.round((rect.height || 44) / 2);
+  host.classList.add('is-solarium-glass');
+  const rect = host.getBoundingClientRect();
+  const radius = Math.round((rect.height || 40) / 2);
   lyricsToggleGlass = new LiquidGlassView(createDarkPlatterMaterial(solarium), {
     source: backdropCanvas?.isConnected ? backdropCanvas : null,
     sourceBounds: () => backdropCanvas.getBoundingClientRect(),
     onCapture: captureMenuScene,
     cornerRadius: radius,
     interactive: true,
-    pressTransformTarget: lyricsToggle,
+    pressTransformTarget: host,
     pressScaleAmount: 0.08,
   });
   lyricsToggleGlass.element.className = 'solarium-lyrics-toggle__glass';
@@ -5003,7 +5178,7 @@ function mountSolariumLyricsToggle(solarium) {
     pointerEvents: 'none',
   });
   lyricsToggleGlass.element.setAttribute('aria-hidden', 'true');
-  lyricsToggle.prepend(lyricsToggleGlass.element);
+  host.prepend(lyricsToggleGlass.element);
   lyricsToggleGlass.requestDraw();
 }
 
@@ -5122,11 +5297,23 @@ function syncSolariumSheets() {
 
 function mountStandardMetadataMenu() {
   teardownMetadataMenu();
+  teardownTranslateMenu();
   teardownLyricsToggleGlass();
   teardownMacosVolumeGlass();
   ensureSolariumStylesheet(false);
   syncSolariumSheets();
   metadataMenu = new MenuView(metadataMenuToggle, createMetadataMenuOptions());
+  if (iosTranslateToggle) {
+    iosTranslateMenu = new MenuView(iosTranslateToggle, {
+      ...createTranslateMenuOptions(),
+      onOpen: () => {
+        if (iosTranslateMenu?.opts) {
+          iosTranslateMenu.opts.items = buildTranslateMenuItems();
+          iosTranslateMenu.opts.placement = translateMenuPlacement();
+        }
+      },
+    });
+  }
 }
 
 async function syncSolariumMetadataControl() {
@@ -5139,6 +5326,7 @@ async function syncSolariumMetadataControl() {
   // Hide the resting button background immediately when Solarium is enabled
   // so it never flashes before the Solarium module finishes loading.
   metadataMenuToggle.classList.add('is-solarium-glass');
+  iosTranslateToggle?.classList.add('is-solarium-glass');
   syncSolariumLyricsToggle();
   syncSolariumMacosVolume();
 
@@ -5146,6 +5334,17 @@ async function syncSolariumMetadataControl() {
   // away while Solarium loads, or if Solarium is unavailable in a build.
   if (!metadataMenu) {
     metadataMenu = new MenuView(metadataMenuToggle, createMetadataMenuOptions());
+  }
+  if (!iosTranslateMenu && iosTranslateToggle) {
+    iosTranslateMenu = new MenuView(iosTranslateToggle, {
+      ...createTranslateMenuOptions(),
+      onOpen: () => {
+        if (iosTranslateMenu?.opts) {
+          iosTranslateMenu.opts.items = buildTranslateMenuItems();
+          iosTranslateMenu.opts.placement = translateMenuPlacement();
+        }
+      },
+    });
   }
 
   try {
@@ -5160,11 +5359,13 @@ async function syncSolariumMetadataControl() {
 
     syncSolariumSheets();
     teardownMetadataMenu();
+    teardownTranslateMenu();
     syncSolariumLyricsToggle();
     syncSolariumMacosVolume();
     // Only the icon is visible on the resting button (like Apple Music);
     // SolariumMenuView morphs out of the button into Liquid Glass on press.
     metadataMenuToggle.classList.add('is-solarium-glass');
+    iosTranslateToggle?.classList.add('is-solarium-glass');
 
     metadataMenu = new SolariumMenuView(metadataMenuToggle, {
       ...createMetadataMenuOptions(),
@@ -5179,6 +5380,22 @@ async function syncSolariumMetadataControl() {
         }
       },
     });
+
+    if (iosTranslateToggle) {
+      iosTranslateMenu = new SolariumMenuView(iosTranslateToggle, {
+        ...createTranslateMenuOptions(),
+        source,
+        sourceBounds,
+        onCapture: captureMenuScene,
+        theme: 'dark',
+        onMenuWillCreate: () => {
+          if (iosTranslateMenu?.opts) {
+            iosTranslateMenu.opts.items = buildTranslateMenuItems();
+            iosTranslateMenu.opts.placement = translateMenuPlacement();
+          }
+        },
+      });
+    }
   } catch (error) {
     console.warn('[solarium] Falling back to standard MenuView:', error);
     if (generation === solariumSyncGeneration) {

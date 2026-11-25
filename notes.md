@@ -1,14 +1,12 @@
 ### Added
-- **macOS Solarium volume slider**: Added a top-right Liquid Glass volume pill on macOS UI styling with an AirPlay icon, divider, interactive Solarium slider, and speaker icon using the same Liquid Glass platter material as `MenuView`.
-- **System volume control**: Wired the macOS, iOS, and iPadOS volume sliders to read and control system output volume in real time (macOS and Linux) and stay in sync with hardware volume changes.
-- **Shuffle & Repeat buttons**: Added Shuffle and Repeat buttons flanking the playback controls on macOS and iPadOS UI styles.
-- **iOS bottom action row & AirPlay customization**: Added the iOS bottom action row (lyrics toggle, playback destination icon, and queue icon) with idle auto-hide, selectable SF Symbol icons (`MacBook`, `AirPods`, `AirPlay`), and customizable bottom label modes (`Off`, `Bluetooth device`, `iPhone → device`, `Device name`, `Custom text`) in Settings.
+- **Lyrics Pronunciation & Translation**: Added per-word romanization underneath word-timed lyrics (supporting mixed-script lines while skipping pure-English lines) with synchronized karaoke gradient fill, plus per-line English translations with smooth 700 ms slide, fade, and column-width transitions that preserve the active line's scroll anchor.
+- **Local JS romanization**: Added offline pronunciation engines for Japanese (`kuroshiro` + `kuroshiro-analyzer-kuromoji`), Chinese (`pinyin`), Korean (`hangul-romanization`), and Arabic (`ichkil` ONNX diacritization + diacritic-aware romanizer), keeping only Translation on the cloud API.
+- **Translate & Pronunciation controls**: Added SF Symbols translate, pronunciation, and translation icons with a shared bottom-right Solarium Liquid Glass pill on macOS and iPadOS (disabled when lyrics contain no transliterable script) and a standalone borderless button above the progress bar on iOS portrait (hidden when lyrics contain no transliterable script).
 
 ### Changed
-- **iPadOS layout**: Removed portrait mode on iPadOS so it always uses the two-column landscape layout at all window sizes.
-- **Solarium lyrics toggle**: Matched the lyrics toggle button's Liquid Glass backdrop material and shadow to `MenuView` and the macOS volume slider pill.
-- **iOS layout & controls**: Refined the iOS album layout, volume slider sizing and repeatable speaker bounce animation, and window corner radius.
+- **UI style switching**: Automatically disables active pronunciation and translation when switching UI styles.
 
 ### Fixed
-- **iOS traffic light positioning**: Adjusted the custom window controls inset in iOS mode (`{ x: 30, y: 24 }`) so they clear the larger rounded window corner.
-- **AirPods Pro icon rendering**: Rendered the AirPods Pro SF Symbol using its hierarchical mask layers so the stem, pod head, and ear-tip cutouts display cleanly.
+- **Pronunciation column layout & wrapping**: Measured untransformed layout widths (`offsetWidth`), added vertical spacing for wrapped rows, and cleared fixed widths after expand animations so adjacent CJK and English words never collide.
+- **Menu icon rendering under CSP**: Replaced inline SVG `style` attributes with `.menuview__icon svg.svg-filled` so filled SF Symbols render cleanly under `style-src 'self'`.
+- **Translation batching & caching**: Switched cloud translation batches to newline-delimited chunks and stopped caching empty responses on transient network or rate-limit errors.

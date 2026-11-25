@@ -57,7 +57,9 @@ contextBridge.exposeInMainWorld('app', {
   lyrics: {
     get: (track) => ipcRenderer.invoke('lyrics:get', track),
     search: (track, query) => ipcRenderer.invoke('lyrics:search', track, query),
-    openFile: () => ipcRenderer.invoke('lyrics:open-file')
+    openFile: () => ipcRenderer.invoke('lyrics:open-file'),
+    getAnnotations: (lines, wordLines, options) =>
+      ipcRenderer.invoke('lyrics:annotations', lines, wordLines, options)
   },
   animatedArt: {
     get: (track) => ipcRenderer.invoke('animated-art:get', track)

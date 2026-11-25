@@ -2,6 +2,12 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const Kuroshiro = require('kuroshiro').default || require('kuroshiro');
+const KuromojiAnalyzer = require('kuroshiro-analyzer-kuromoji');
+const pinyinMod = require('pinyin');
+const pinyinFn = pinyinMod.default || pinyinMod.pinyin || pinyinMod;
+const hangulRomanization = require('hangul-romanization');
+const { diacritize: ichkilDiacritize } = require('ichkil');
 const { getNowPlaying } = require('../media/now-playing');
 
 const apiRoot = 'https://lrclib.net/api/';
@@ -1842,10 +1848,342 @@ async function openLocalLyricsFile() {
   }
 }
 
+const annotationsCache = new Map();
+const transliterableScriptPattern = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\u4E00-\u9FFF\u3400-\u4DBF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+const kanaPattern = /[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF]/;
+const hangulPattern = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+const hanPattern = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
+
+let kuroshiroPromise = null;
+function getKuroshiro() {
+  if (!kuroshiroPromise) {
+    kuroshiroPromise = (async () => {
+      const k = new Kuroshiro();
+      await k.init(new KuromojiAnalyzer());
+      return k;
+    })().catch((err) => {
+      kuroshiroPromise = null;
+      throw err;
+    });
+  }
+  return kuroshiroPromise;
+}
+
+const AR_CONSONANTS = {
+  'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh',
+  'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh',
+  'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': "'", 'غ': 'gh',
+  'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+  'ه': 'h', 'ة': 't', 'و': 'w', 'ي': 'y', 'ء': "'", 'ؤ': "'", 'ئ': "'",
+  'أ': 'a', 'إ': 'i', 'آ': 'a', 'ا': 'a', 'ٱ': 'a', 'ى': 'a',
+};
+const AR_DIACRITICS = new Set([
+  '\u064b', '\u064c', '\u064d', '\u064e', '\u064f', '\u0650', '\u0651', '\u0652', '\u0670',
+]);
+
+function romanizeDiacritizedArabic(text) {
+  return String(text || '').split(/(\s+)/).map((token) => {
+    if (!token || /^\s+$/.test(token)) return token;
+    const chars = [...token];
+    let out = '';
+    for (let i = 0; i < chars.length; i += 1) {
+      const ch = chars[i];
+      if (AR_DIACRITICS.has(ch)) continue;
+      if (!(ch in AR_CONSONANTS)) {
+        out += ch;
+        continue;
+      }
+      let shadda = false;
+      let vowel = '';
+      let sukun = false;
+      let j = i + 1;
+      while (j < chars.length && AR_DIACRITICS.has(chars[j])) {
+        const d = chars[j];
+        if (d === '\u0651') shadda = true;
+        else if (d === '\u064e' || d === '\u0670') vowel = 'a';
+        else if (d === '\u064f') vowel = 'u';
+        else if (d === '\u0650') vowel = 'i';
+        else if (d === '\u064b') vowel = 'an';
+        else if (d === '\u064c') vowel = 'un';
+        else if (d === '\u064d') vowel = 'in';
+        else if (d === '\u0652') sukun = true;
+        j += 1;
+      }
+      i = j - 1;
+
+      const atWordStart = out.length === 0;
+      const atWordEnd = j >= chars.length || !(chars[j] in AR_CONSONANTS);
+
+      if (ch === 'ا' || ch === 'ٱ') {
+        if (atWordStart && vowel) out += vowel;
+        else if (out.endsWith('an')) continue;
+        else if (!out.endsWith('a') && !out.endsWith('u') && !out.endsWith('i')) out += vowel || 'a';
+        continue;
+      }
+      if (ch === 'أ' || ch === 'إ' || ch === 'آ') {
+        if (atWordStart) out += vowel || (ch === 'إ' ? 'i' : 'a');
+        else out += (ch === 'آ' ? 'a' : '') + (vowel || (ch === 'إ' ? 'i' : ''));
+        continue;
+      }
+      if (ch === 'ى') {
+        if (!out.endsWith('a')) out += 'a';
+        continue;
+      }
+      if (ch === 'ة') {
+        if (atWordEnd && !vowel) out += 'a';
+        else out += 't' + vowel;
+        continue;
+      }
+      if (ch === 'و' && !vowel && (sukun || atWordEnd || out.endsWith('u'))) {
+        if (!out.endsWith('u')) out += 'u';
+        continue;
+      }
+      if (ch === 'ي' && !vowel && (sukun || atWordEnd || out.endsWith('i'))) {
+        if (!out.endsWith('i')) out += 'i';
+        continue;
+      }
+      const cons = AR_CONSONANTS[ch];
+      out += (shadda ? cons + cons : cons) + vowel;
+    }
+    return out;
+  }).join('').replace(/\s+/g, ' ').trim();
+}
+
+async function romanizeLocalText(text, { preferJapanese = false } = {}) {
+  const input = typeof text === 'string' ? text.trim() : '';
+  if (!input) return '';
+  if (!transliterableScriptPattern.test(input)) {
+    return input;
+  }
+  if (kanaPattern.test(input) || (preferJapanese && hanPattern.test(input))) {
+    try {
+      const kuroshiro = await getKuroshiro();
+      const out = await kuroshiro.convert(input, {
+        to: 'romaji',
+        mode: 'spaced',
+        romajiSystem: 'hepburn',
+      });
+      return String(out || '').replace(/\s+/g, ' ').trim();
+    } catch {
+      return '';
+    }
+  }
+  if (hangulPattern.test(input)) {
+    return String(hangulRomanization.convert(input) || '').replace(/\s+/g, ' ').trim();
+  }
+  if (hanPattern.test(input)) {
+    const parts = pinyinFn(input, { style: 'normal' });
+    return parts
+      .map((entry) => (Array.isArray(entry) ? entry[0] : entry))
+      .join(' ')
+      .replace(/\s+([,，.。!！?？、])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  if (arabicPattern.test(input)) {
+    try {
+      const diacritized = await ichkilDiacritize(input);
+      return romanizeDiacritizedArabic(diacritized);
+    } catch {
+      return '';
+    }
+  }
+  return input;
+}
+
+async function fetchGoogleTranslationBatch(text) {
+  const response = await fetch(
+    'https://translate.google.com/translate_a/single?client=dict-chrome-ex&sl=auto&tl=en&dt=t',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0'
+      },
+      body: new URLSearchParams({ q: text }).toString(),
+      signal: AbortSignal.timeout(requestTimeoutMs)
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  const entries = Array.isArray(data?.[0]) ? data[0] : [];
+  return entries
+    .filter(item => typeof item?.[0] === 'string')
+    .map(item => item[0])
+    .join('');
+}
+
+async function getLyricsAnnotations(
+  rawLines,
+  rawWordLines = [],
+  { needPronunciation = true, needTranslation = true } = {}
+) {
+  const lines = Array.isArray(rawLines)
+    ? rawLines.slice(0, 500).map(line => (typeof line === 'string' ? line.trim() : ''))
+    : [];
+  const wordLines = Array.isArray(rawWordLines)
+    ? rawWordLines.slice(0, 500).map(words =>
+        Array.isArray(words) ? words.map(w => (typeof w === 'string' ? w.trim() : '')) : []
+      )
+    : [];
+  const pronunciations = new Array(lines.length).fill('');
+  const translations = new Array(lines.length).fill('');
+  const wordPronunciations = wordLines.map(words => new Array(words.length).fill(''));
+  if (!lines.length || (!needPronunciation && !needTranslation)) {
+    return { pronunciations, translations, wordPronunciations };
+  }
+
+  const cacheKey = crypto
+    .createHash('sha256')
+    .update(JSON.stringify([lines, wordLines]))
+    .digest('hex');
+  const cached = annotationsCache.get(cacheKey) || {
+    pronunciations: null,
+    wordPronunciations: null,
+    translations: null,
+  };
+
+  const preferJapanese = lines.some(line => kanaPattern.test(line));
+
+  const tasks = [];
+
+  if (needPronunciation) {
+    if (cached.pronunciations && cached.wordPronunciations) {
+      for (let i = 0; i < lines.length; i += 1) {
+        pronunciations[i] = cached.pronunciations[i] || '';
+      }
+      for (let i = 0; i < wordLines.length; i += 1) {
+        wordPronunciations[i] = [...(cached.wordPronunciations[i] || wordPronunciations[i])];
+      }
+    } else {
+      tasks.push((async () => {
+        const wordCache = new Map();
+        await Promise.all(
+          lines.map(async (line, i) => {
+            if (!line || !transliterableScriptPattern.test(line)) return;
+            pronunciations[i] = await romanizeLocalText(line, { preferJapanese });
+          })
+        );
+        for (let i = 0; i < wordLines.length; i += 1) {
+          if (!lines[i] || !transliterableScriptPattern.test(lines[i])) continue;
+          const words = wordLines[i];
+          if (arabicPattern.test(lines[i]) && pronunciations[i]) {
+            const lineTokens = pronunciations[i].split(/\s+/).filter(Boolean);
+            const nonEmptyWordIndexes = [];
+            for (let j = 0; j < words.length; j += 1) {
+              if (words[j]) nonEmptyWordIndexes.push(j);
+            }
+            if (lineTokens.length === nonEmptyWordIndexes.length) {
+              for (let k = 0; k < nonEmptyWordIndexes.length; k += 1) {
+                const idx = nonEmptyWordIndexes[k];
+                wordPronunciations[i][idx] = transliterableScriptPattern.test(words[idx])
+                  ? lineTokens[k]
+                  : words[idx];
+              }
+              continue;
+            }
+          }
+          for (let j = 0; j < words.length; j += 1) {
+            const w = words[j];
+            if (!w) continue;
+            if (!transliterableScriptPattern.test(w)) {
+              wordPronunciations[i][j] = w;
+              continue;
+            }
+            if (!wordCache.has(w)) {
+              wordCache.set(w, romanizeLocalText(w, { preferJapanese }));
+            }
+          }
+        }
+        const resolvedWords = new Map();
+        await Promise.all(
+          [...wordCache.entries()].map(async ([w, promise]) => {
+            resolvedWords.set(w, await promise);
+          })
+        );
+        for (let i = 0; i < wordLines.length; i += 1) {
+          if (!lines[i] || !transliterableScriptPattern.test(lines[i])) continue;
+          const words = wordLines[i];
+          for (let j = 0; j < words.length; j += 1) {
+            const w = words[j];
+            if (w && !wordPronunciations[i][j] && resolvedWords.has(w)) {
+              wordPronunciations[i][j] = resolvedWords.get(w);
+            }
+          }
+        }
+        cached.pronunciations = [...pronunciations];
+        cached.wordPronunciations = wordPronunciations.map(arr => [...arr]);
+      })());
+    }
+  }
+
+  if (needTranslation) {
+    if (cached.translations) {
+      for (let i = 0; i < lines.length; i += 1) {
+        translations[i] = cached.translations[i] || '';
+      }
+    } else {
+      tasks.push((async () => {
+        const targets = [];
+        for (let i = 0; i < lines.length; i += 1) {
+          if (lines[i] && transliterableScriptPattern.test(lines[i])) {
+            targets.push({ index: i, text: lines[i].replace(/\r?\n/g, ' ') });
+          }
+        }
+        const chunkSize = 50;
+        const fetchLineChunk = async (chunk) => {
+          try {
+            const translated = await fetchGoogleTranslationBatch(
+              chunk.map(item => item.text).join('\n')
+            );
+            const parts = translated.split(/\r?\n/).map(part => part.trim());
+            if (parts.length === chunk.length) {
+              for (let j = 0; j < chunk.length; j += 1) {
+                translations[chunk[j].index] = parts[j] || '';
+              }
+              return;
+            }
+            if (chunk.length > 1) {
+              const mid = Math.ceil(chunk.length / 2);
+              await Promise.all([
+                fetchLineChunk(chunk.slice(0, mid)),
+                fetchLineChunk(chunk.slice(mid)),
+              ]);
+            }
+          } catch {
+            // Do not storm Google with per-line requests on 429/timeout.
+          }
+        };
+        const lineChunks = [];
+        for (let start = 0; start < targets.length; start += chunkSize) {
+          lineChunks.push(targets.slice(start, start + chunkSize));
+        }
+        await Promise.all(lineChunks.map(chunk => fetchLineChunk(chunk)));
+        if (translations.some(Boolean)) {
+          cached.translations = [...translations];
+        }
+      })());
+    }
+  }
+
+  await Promise.all(tasks);
+
+  if (cached.pronunciations || cached.translations) {
+    annotationsCache.set(cacheKey, cached);
+  }
+  return { pronunciations, translations, wordPronunciations };
+}
+
 function registerLyricsIpc() {
   ipcMain.handle('lyrics:get', (_event, track) => getLyricsForTrack(track));
   ipcMain.handle('lyrics:search', (_event, track, query) => searchLyrics(track, query));
   ipcMain.handle('lyrics:open-file', () => openLocalLyricsFile());
+  ipcMain.handle('lyrics:annotations', (_event, lines, wordLines, options) =>
+    getLyricsAnnotations(lines, wordLines, options)
+  );
 }
 
 module.exports = {

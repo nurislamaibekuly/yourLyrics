@@ -914,6 +914,7 @@ export class LyricsView {
     this.fillTails = new Map();
     this.fillGeos = new Map();
     this.backgroundFillGeos = new Map();
+    this.pronunciationFillGeos = new Map();
     this.metricsGen = 0;
     this.reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.interactionEnabled = true;
@@ -1139,6 +1140,17 @@ export class LyricsView {
     cancelAnimationFrame(this.interactionRaf);
     this.interactionRaf = 0;
     this.cancelledClickIndex = -1;
+    this.element.classList.remove('has-pronunciation', 'has-translation');
+    if (this.pronunciationHideTimer) {
+      clearTimeout(this.pronunciationHideTimer);
+      this.pronunciationHideTimer = 0;
+    }
+    if (this.pronunciationTrackRaf) {
+      cancelAnimationFrame(this.pronunciationTrackRaf);
+      this.pronunciationTrackRaf = 0;
+    }
+    this.pronunciationChunks = [];
+    this.pronunciationFillGeos?.clear();
     this.completedIndices.clear();
     this.completedFades.clear();
     this.completedPosition = null;
@@ -1711,6 +1723,14 @@ export class LyricsView {
     if (!wordAllowsBreak(merged.text)) {
       wrapper.classList.add('is-unbreakable');
     }
+    if (!simpleMotion) {
+      wrapper.dataset.wordText = (merged.text ?? '').trim();
+    }
+    const row = simpleMotion ? wrapper : document.createElement('span');
+    if (!simpleMotion) {
+      row.className = 'lyrics-emphasis-row';
+      wrapper.append(row);
+    }
     const plans = [];
     let charOffset = 0;
     for (const word of words) {
@@ -1723,10 +1743,17 @@ export class LyricsView {
         charTotal,
         start: merged.time
       });
-      wrapper.append(plan.element);
+      row.append(plan.element);
       plans.push(plan);
       charOffset += Array.from(word.text ?? '')
         .filter((char) => !/\s/.test(char)).length;
+    }
+    if (!simpleMotion) {
+      const wordPron = document.createElement('span');
+      wordPron.className = 'lyrics-word-pronunciation';
+      wordPron.dataset.start = String(merged.time);
+      wordPron.dataset.end = String(merged.end);
+      wrapper.append(wordPron);
     }
 
     return { wrapper, plans };
@@ -1918,6 +1945,15 @@ export class LyricsView {
         }
         element.classList.add('has-background');
       }
+      if (!line.isCredit) {
+        const pronunciation = document.createElement('div');
+        pronunciation.className = 'lyrics-line-pronunciation';
+        pronunciation.hidden = true;
+        const translation = document.createElement('div');
+        translation.className = 'lyrics-line-translation';
+        translation.hidden = true;
+        element.append(pronunciation, translation);
+      }
       fragment.append(element);
       this.wordMotions.push(motions);
       this.backgroundWordMotions.push(backgroundMotions);
@@ -1933,6 +1969,13 @@ export class LyricsView {
 
     this.lineElements = Array.from(
       this.track.querySelectorAll('.lyrics-line')
+    );
+    this.pronunciationChunks = this.lineElements.map((element) =>
+      Array.from(element.querySelectorAll('.lyrics-word-pronunciation')).map((node) => ({
+        element: node,
+        start: Number(node.dataset.start) || 0,
+        end: Number(node.dataset.end) || 0
+      }))
     );
     this.wordElements = this.lineElements.map((element) =>
       Array.from(element.querySelectorAll('.lyrics-main-text .lyrics-word'))
@@ -2073,6 +2116,248 @@ export class LyricsView {
     this.updateWordMotion(position, this.activeIndices);
     this.updateBackgroundWordMotion(position, this.activeIndices);
     this.updateInterludeDots(position);
+  }
+
+  setAnnotations(annotations = null, { showPronunciation = false, showTranslation = false } = {}) {
+    if (this.pronunciationShowTimer) {
+      clearTimeout(this.pronunciationShowTimer);
+      this.pronunciationShowTimer = 0;
+    }
+    if (this.pronunciationHideTimer) {
+      clearTimeout(this.pronunciationHideTimer);
+      this.pronunciationHideTimer = 0;
+    }
+    this.element.classList.toggle('has-pronunciation', Boolean(showPronunciation));
+    this.element.classList.toggle('has-translation', Boolean(showTranslation));
+    let rawIndex = 0;
+    const showingElements = [];
+    const hidingElements = [];
+    for (let i = 0; i < this.lineElements.length; i += 1) {
+      const line = this.lines[i];
+      const element = this.lineElements[i];
+      if (!line || line.isCredit) continue;
+      const pronEl = element.querySelector('.lyrics-line-pronunciation');
+      const transEl = element.querySelector('.lyrics-line-translation');
+      const wordChunks = Array.from(element.querySelectorAll('.lyrics-main-text > .lyrics-emphasis'));
+      const wordProns = annotations?.wordPronunciations?.[rawIndex];
+      if (annotations) {
+        const pronText = typeof annotations.pronunciations?.[rawIndex] === 'string'
+          ? annotations.pronunciations[rawIndex].trim()
+          : '';
+        const transText = typeof annotations.translations?.[rawIndex] === 'string'
+          ? annotations.translations[rawIndex].trim()
+          : '';
+        if (pronEl) pronEl.textContent = pronText;
+        if (transEl) transEl.textContent = transText;
+        if (Array.isArray(wordProns) && wordChunks.length) {
+          for (let w = 0; w < wordChunks.length; w += 1) {
+            const wp = wordChunks[w].querySelector('.lyrics-word-pronunciation');
+            if (wp) wp.textContent = typeof wordProns[w] === 'string' ? wordProns[w].trim() : '';
+          }
+        }
+      }
+      let hasWordPron = false;
+      if (showPronunciation && wordChunks.length) {
+        for (const chunk of wordChunks) {
+          const wp = chunk.querySelector('.lyrics-word-pronunciation');
+          if (wp && wp.textContent) {
+            hasWordPron = true;
+          }
+        }
+        element.classList.toggle('has-word-pronunciation', hasWordPron);
+        if (hasWordPron) {
+          const wordWidths = [];
+          const targetWidths = [];
+          for (const chunk of wordChunks) {
+            chunk.style.width = '';
+            const row = chunk.querySelector('.lyrics-emphasis-row');
+            const wp = chunk.querySelector('.lyrics-word-pronunciation');
+            const baseW = Math.ceil((row || chunk).offsetWidth);
+            wordWidths.push(baseW);
+            chunk.dataset.baseWidth = String(baseW);
+            if (!wp || !wp.textContent) {
+              targetWidths.push(baseW);
+            } else {
+              wp.style.maxHeight = 'none';
+              const pw = Math.ceil(wp.scrollWidth);
+              const ph = Math.ceil(wp.scrollHeight) + 2;
+              wp.style.maxHeight = '';
+              wp.style.setProperty('--pron-h', `${ph}px`);
+              targetWidths.push(Math.max(baseW, pw));
+            }
+          }
+          for (let idx = 0; idx < wordChunks.length; idx += 1) {
+            wordChunks[idx].style.width = `${wordWidths[idx]}px`;
+          }
+          // Force reflow from base word width so width + translateY + opacity all ease over 700ms.
+          void element.offsetWidth;
+          for (let idx = 0; idx < wordChunks.length; idx += 1) {
+            const chunk = wordChunks[idx];
+            chunk.style.marginInlineEnd = '';
+            chunk.style.width = `${targetWidths[idx]}px`;
+            const wp = chunk.querySelector('.lyrics-word-pronunciation');
+            if (wp) wp.classList.toggle('is-visible', Boolean(wp.textContent));
+          }
+          showingElements.push(element);
+        }
+      } else {
+        const wasVisible = element.classList.contains('has-word-pronunciation');
+        if (wasVisible) {
+          for (const chunk of wordChunks) {
+            chunk.style.width = `${Math.ceil(chunk.offsetWidth)}px`;
+          }
+          void element.offsetWidth;
+          for (const chunk of wordChunks) {
+            const row = chunk.querySelector('.lyrics-emphasis-row');
+            const rowW = row ? Math.ceil(row.offsetWidth) : 0;
+            const baseW = rowW || Number(chunk.dataset.baseWidth) || 0;
+            if (baseW > 0) {
+              chunk.style.width = `${baseW}px`;
+              chunk.style.marginInlineEnd = '0px';
+            }
+            const wp = chunk.querySelector('.lyrics-word-pronunciation');
+            if (wp) wp.classList.remove('is-visible');
+          }
+          hidingElements.push(element);
+        } else {
+          for (const chunk of wordChunks) {
+            chunk.style.width = '';
+            chunk.style.marginInlineEnd = '';
+            const wp = chunk.querySelector('.lyrics-word-pronunciation');
+            if (wp) wp.classList.remove('is-visible');
+          }
+          element.classList.remove('has-word-pronunciation');
+        }
+      }
+      if (pronEl) {
+        const showPronLine = Boolean(showPronunciation && !hasWordPron && pronEl.textContent);
+        if (showPronLine) {
+          pronEl.hidden = false;
+          pronEl.style.maxHeight = 'none';
+          const ph = Math.ceil(pronEl.scrollHeight) + 2;
+          pronEl.style.maxHeight = '';
+          pronEl.style.setProperty('--pron-line-h', `${ph}px`);
+          void pronEl.offsetHeight;
+        }
+        pronEl.classList.toggle('is-visible', showPronLine);
+      }
+      if (transEl) {
+        const showTransLine = Boolean(showTranslation && transEl.textContent);
+        if (showTransLine) {
+          transEl.hidden = false;
+          transEl.style.maxHeight = 'none';
+          const th = Math.ceil(transEl.scrollHeight) + 2;
+          transEl.style.maxHeight = '';
+          transEl.style.setProperty('--trans-line-h', `${th}px`);
+          void transEl.offsetHeight;
+        }
+        transEl.classList.toggle('is-visible', showTransLine);
+      }
+      rawIndex += 1;
+    }
+    if (showingElements.length) {
+      this.pronunciationShowTimer = setTimeout(() => {
+        this.pronunciationShowTimer = 0;
+        for (const el of showingElements) {
+          for (const chunk of el.querySelectorAll('.lyrics-main-text > .lyrics-emphasis')) {
+            chunk.style.width = '';
+          }
+        }
+      }, 710);
+    }
+    if (hidingElements.length) {
+      this.pronunciationHideTimer = setTimeout(() => {
+        this.pronunciationHideTimer = 0;
+        for (const el of hidingElements) {
+          el.classList.remove('has-word-pronunciation');
+          for (const chunk of el.querySelectorAll('.lyrics-main-text > .lyrics-emphasis')) {
+            chunk.style.width = '';
+            chunk.style.marginInlineEnd = '';
+          }
+        }
+        this.metricsGen += 1;
+        this.updateTargets(this.anchorIndex, { interlude: this.interludeIndex });
+        this.schedulePositionTrack();
+      }, 710);
+    }
+    this.fillGeos.clear();
+    this.backgroundFillGeos.clear();
+    this.pronunciationFillGeos?.clear();
+    const syncLockedLayout = () => {
+      this.metricsGen += 1;
+      this.updateTargets(this.anchorIndex, {
+        stagger: false,
+        preserveDelay: true,
+        interlude: this.interludeIndex
+      });
+      for (const state of this.lineStates) {
+        state.y.jump(state.y.target);
+        this.renderLinePosition(state);
+      }
+      for (const state of this.interludeStates) {
+        state.y.jump(state.y.target);
+        this.renderLinePosition(state);
+      }
+    };
+
+    for (const active of this.activeIndices) {
+      this.updateLinePronunciationFill(active, this.lastPosition);
+    }
+    syncLockedLayout();
+
+    if (this.pronunciationTrackRaf) {
+      cancelAnimationFrame(this.pronunciationTrackRaf);
+      this.pronunciationTrackRaf = 0;
+    }
+    const trackUntil = performance.now() + 740;
+    const trackFrame = () => {
+      syncLockedLayout();
+      if (performance.now() < trackUntil) {
+        this.pronunciationTrackRaf = requestAnimationFrame(trackFrame);
+      } else {
+        this.pronunciationTrackRaf = 0;
+      }
+    };
+    this.pronunciationTrackRaf = requestAnimationFrame(trackFrame);
+  }
+
+  ensurePronunciationFillGeometry(index) {
+    const lineElement = this.lineElements[index];
+    const chunks = this.pronunciationChunks?.[index];
+    if (!lineElement || !chunks?.length || !lineElement.classList.contains('has-word-pronunciation')) {
+      return null;
+    }
+    const activeChunks = chunks.filter(c => c.element.classList.contains('is-visible') && c.element.textContent);
+    if (!activeChunks.length) return null;
+    const elements = activeChunks.map(c => c.element);
+    const cached = this.pronunciationFillGeos.get(index);
+    if (cached && cached.gen === this.metricsGen && cached.count === elements.length) {
+      return { geo: cached, chunks: activeChunks, elements };
+    }
+    const geo = {
+      index,
+      gen: this.metricsGen,
+      count: elements.length,
+      ...measureFillGeometry(lineElement, elements, [])
+    };
+    this.pronunciationFillGeos.set(index, geo);
+    for (const el of elements) {
+      el.__fill = undefined;
+      el.__fadeWidth = undefined;
+    }
+    return { geo, chunks: activeChunks, elements };
+  }
+
+  updateLinePronunciationFill(active, position) {
+    if (!this.element.classList.contains('has-pronunciation')) return;
+    const info = this.ensurePronunciationFillGeometry(active);
+    if (!info) return;
+    const words = info.chunks.map(c => ({
+      time: c.start,
+      end: c.end,
+      text: c.element.textContent || ''
+    }));
+    this.paintLineFill(active, position, words, info.elements, [], info.geo);
   }
 
   update(position, duration = this.duration, playing = this.playing) {
@@ -2369,6 +2654,7 @@ export class LyricsView {
   }
 
   updateLineFill(active, position) {
+    this.updateLinePronunciationFill(active, position);
     const line = this.lines[active];
     const wordElements = this.wordElements[active];
     if (!line.words?.length ||
