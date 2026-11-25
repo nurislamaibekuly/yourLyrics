@@ -1,6 +1,6 @@
 ### Added
 - **Lyrics Pronunciation & Translation**: Added per-word romanization underneath word-timed lyrics (supporting mixed-script lines while skipping pure-English lines) with synchronized karaoke gradient fill, plus per-line English translations with smooth 700 ms slide, fade, and column-width transitions that preserve the active line's scroll anchor.
-- **Local JS romanization**: Added offline pronunciation engines for Japanese (`kuroshiro` + `kuroshiro-analyzer-kuromoji`), Chinese (`pinyin`), Korean (`hangul-romanization`), and Arabic (`ichkil` ONNX diacritization + diacritic-aware romanizer), keeping only Translation on the cloud API.
+- **Local JS romanization**: Added offline pronunciation engines for Japanese (`kuroshiro` + `kuroshiro-analyzer-kuromoji`), Chinese (`pinyin-pro`), Korean (`hangul-romanization`), and Arabic (`ichkil` ONNX diacritization + diacritic-aware romanizer), keeping only Translation on the cloud API.
 - **Translate & Pronunciation controls**: Added SF Symbols translate, pronunciation, and translation icons with a shared bottom-right Solarium Liquid Glass pill on macOS and iPadOS (disabled when lyrics contain no transliterable script) and a standalone borderless button above the progress bar on iOS portrait (hidden when lyrics contain no transliterable script).
 
 ### Changed

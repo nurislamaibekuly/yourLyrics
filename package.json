@@ -84,12 +84,20 @@
         ]
       },
       "package.json",
-      "LICENSE"
+      "LICENSE",
+      "!node_modules/kuromoji/test/**",
+      "!node_modules/kuromoji/demo/**",
+      "!node_modules/kuromoji/example/**"
     ],
     "mac": {
       "category": "public.app-category.music",
       "icon": "assets/icon.icns",
       "artifactName": "${productName}-${version}-macos-${arch}.${ext}",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v3/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/win32/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/darwin/!(${arch})/**"
+      ],
       "target": [
         "zip"
       ],
@@ -122,13 +130,23 @@
       "target": [
         "AppImage"
       ],
-      "artifactName": "${productName}-${version}-linux-x64.${ext}"
+      "artifactName": "${productName}-${version}-linux-x64.${ext}",
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/win32/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/linux/!(${arch})/**"
+      ]
     },
     "win": {
       "icon": "assets/icon.png",
       "artifactName": "${productName}-${version}-windows-${arch}.${ext}",
       "target": [
         "nsis"
+      ],
+      "files": [
+        "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/linux/**",
+        "!node_modules/onnxruntime-node/bin/napi-v3/win32/!(${arch})/**"
       ],
       "extraResources": [
         {
@@ -149,6 +167,6 @@
     "ichkil": "^1.1.0",
     "kuroshiro": "^1.2.1",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
-    "pinyin": "^4.0.0"
+    "pinyin-pro": "^3.29.5"
   }
 }

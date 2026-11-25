@@ -4,8 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const Kuroshiro = require('kuroshiro').default || require('kuroshiro');
 const KuromojiAnalyzer = require('kuroshiro-analyzer-kuromoji');
-const pinyinMod = require('pinyin');
-const pinyinFn = pinyinMod.default || pinyinMod.pinyin || pinyinMod;
+const { pinyin: pinyinFn } = require('pinyin-pro');
 const hangulRomanization = require('hangul-romanization');
 const { diacritize: ichkilDiacritize } = require('ichkil');
 const { getNowPlaying } = require('../media/now-playing');
@@ -1973,10 +1972,7 @@ async function romanizeLocalText(text, { preferJapanese = false } = {}) {
     return String(hangulRomanization.convert(input) || '').replace(/\s+/g, ' ').trim();
   }
   if (hanPattern.test(input)) {
-    const parts = pinyinFn(input, { style: 'normal' });
-    return parts
-      .map((entry) => (Array.isArray(entry) ? entry[0] : entry))
-      .join(' ')
+    return String(pinyinFn(input, { toneType: 'none', nonZh: 'consecutive' }) || '')
       .replace(/\s+([,，.。!！?？、])/g, '$1')
       .replace(/\s+/g, ' ')
       .trim();
