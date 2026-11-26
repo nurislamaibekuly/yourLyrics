@@ -87,13 +87,15 @@
       "LICENSE",
       "!node_modules/kuromoji/test/**",
       "!node_modules/kuromoji/demo/**",
-      "!node_modules/kuromoji/example/**"
+      "!node_modules/kuromoji/example/**",
+      "!node_modules/**/*.map"
     ],
     "mac": {
       "category": "public.app-category.music",
       "icon": "assets/icon.icns",
       "artifactName": "${productName}-${version}-macos-${arch}.${ext}",
       "files": [
+        "package.json",
         "!node_modules/onnxruntime-node/bin/napi-v3/linux/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/win32/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/darwin/!(${arch})/**"
@@ -132,6 +134,7 @@
       ],
       "artifactName": "${productName}-${version}-linux-x64.${ext}",
       "files": [
+        "package.json",
         "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/win32/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/linux/!(${arch})/**"
@@ -144,6 +147,7 @@
         "nsis"
       ],
       "files": [
+        "package.json",
         "!node_modules/onnxruntime-node/bin/napi-v3/darwin/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/linux/**",
         "!node_modules/onnxruntime-node/bin/napi-v3/win32/!(${arch})/**"
