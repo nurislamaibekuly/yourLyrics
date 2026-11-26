@@ -47,6 +47,7 @@ export class LiquidGlassView {
     this.pressTransformTarget = options.pressTransformTarget ?? null;
     this.pressScaleAmount = options.pressScaleAmount ?? 0.055;
     this.pressTranslateAmount = options.pressTranslateAmount ?? 7.0;
+    this._pressTransform = { tx: 0, ty: 0, scaleX: 1, scaleY: 1 };
     this._interactiveRect = null;
     this._interactiveOrigin = null;
     this.disposed = false;
@@ -268,6 +269,7 @@ export class LiquidGlassView {
     const sy = this.pressStretch[1];
     const mag = Math.hypot(sx, sy);
     if (Math.abs(p) < 0.001 && mag < 0.001) {
+      this._pressTransform = { tx: 0, ty: 0, scaleX: 1, scaleY: 1 };
       target.style.transform = '';
       return;
     }
@@ -285,6 +287,7 @@ export class LiquidGlassView {
     const scaleY = baseScale * (1 + gainY * ay - gainX * 0.35 * ax);
     const tx = sx * this.pressTranslateAmount;
     const ty = sy * this.pressTranslateAmount;
+    this._pressTransform = { tx, ty, scaleX, scaleY };
     target.style.transformOrigin = '50% 50%';
     target.style.willChange = 'transform';
     target.style.backfaceVisibility = 'hidden';
@@ -354,7 +357,7 @@ export class LiquidGlassView {
       devicePixels(this.rasterSize.height));
     if (!this.captureRasterSize) return;
     const sizeCoefficient = this.liquidGlass.backgroundTextureSizeCoefficient;
-    const scaleCoefficient = this.liquidGlass.backgroundTextureScaleCoefficient;
+    const scaleCoefficient = Math.max(this.liquidGlass.backgroundTextureScaleCoefficient, 0.5);
     this.captureCanvas.width = devicePixels(this.captureRasterSize.width * sizeCoefficient * scaleCoefficient);
     this.captureCanvas.height = devicePixels(this.captureRasterSize.height * sizeCoefficient * scaleCoefficient);
   }
@@ -479,20 +482,34 @@ export class LiquidGlassView {
   captureBackground() {
     const source = this.source;
     if (!this.captureContext) return;
-    if (this.staticCapture && this._capturedOnce) return;
+    if (this.staticCapture && this._capturedOnce && !this._pressAnimating) return;
     const sourceBounds = this.resolveSourceBounds();
 
     // The on-screen rect (transforms included) is used here, unlike the shader
     // geometry, because a squashed lens is still sampling what is really behind
     // it. Fixed-surface menus supply `fixedViewBounds` to skip synchronous
-    // DOM layout reads during spring frames.
-    const viewRect = this.fixedViewBounds ?? this.element.getBoundingClientRect();
+    // DOM layout reads during spring frames; apply any active press transform
+    // analytically so stretching never stretches the cached backdrop.
+    let viewRect = this.fixedViewBounds ?? this.element.getBoundingClientRect();
+    const pt = this._pressTransform;
+    if (this.fixedViewBounds && pt &&
+      (pt.scaleX !== 1 || pt.scaleY !== 1 || pt.tx !== 0 || pt.ty !== 0) &&
+      this.pressTransformTarget?.contains(this.element)) {
+      const sw = this.fixedViewBounds.width * pt.scaleX;
+      const sh = this.fixedViewBounds.height * pt.scaleY;
+      viewRect = {
+        left: this.fixedViewBounds.left + (this.fixedViewBounds.width - sw) * 0.5 + pt.tx,
+        top: this.fixedViewBounds.top + (this.fixedViewBounds.height - sh) * 0.5 + pt.ty,
+        width: sw,
+        height: sh,
+      };
+    }
     if (!viewRect.width || !viewRect.height) {
       return;
     }
 
     const sizeCoefficient = this.liquidGlass.backgroundTextureSizeCoefficient;
-    const scaleCoefficient = this.liquidGlass.backgroundTextureScaleCoefficient;
+    const scaleCoefficient = Math.max(this.liquidGlass.backgroundTextureScaleCoefficient, 0.5);
     const dpr = window.devicePixelRatio || 1;
 
     const captureWidth = viewRect.width * sizeCoefficient;

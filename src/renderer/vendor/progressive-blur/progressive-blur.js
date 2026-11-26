@@ -26,6 +26,8 @@ uniform float u_radius;
 uniform float u_minRadius;
 uniform float u_rampStart;
 uniform float u_rampEnd;
+uniform float u_archLift;
+uniform float u_maxLod;
 uniform bool u_transparentBorder;
 in vec2 v_uv;
 out vec4 outColor;
@@ -33,37 +35,41 @@ out vec4 outColor;
 float rand(vec2 co) {
   return fract(sin(dot(co,vec2(12.9898,78.233))) * 43758.5453);
 }
-vec4 draw(vec2 uv) {
+vec4 draw(vec2 uv, float lod) {
   if (u_transparentBorder && (any(lessThan(uv,vec2(0.0))) || any(greaterThan(uv,vec2(1.0))))) return vec4(0.0);
-  return texture(u_source,uv);
+  return textureLod(u_source,uv,lod);
 }
 void main() {
   vec2 direction = length(u_direction) > 0.0 ? normalize(u_direction) : vec2(0.0);
   float span = abs(direction.x) + abs(direction.y);
   vec2 topLeftUV = vec2(v_uv.x,1.0-v_uv.y);
   float position = span > 0.0 ? dot(topLeftUV-vec2(0.5),direction)/span+0.5 : 0.5;
+  float dx = (topLeftUV.x - 0.5) * 2.0;
+  float edgeArch = u_archLift * (dx * dx);
   float ramp = abs(u_rampEnd-u_rampStart) < 0.000001
     ? (position >= u_rampStart ? 1.0 : 0.0)
-    : clamp((position-u_rampStart)/(u_rampEnd-u_rampStart),0.0,1.0);
+    : clamp((position-u_rampStart)/(u_rampEnd-u_rampStart) + edgeArch,0.0,1.0);
   float strength = ramp*ramp*ramp*(ramp*(ramp*6.0-15.0)+10.0);
-  float radius = mix(u_minRadius,u_radius,strength);
-  if (radius <= 0.0001) { outColor=draw(v_uv); return; }
+  float curve = u_archLift > 0.0 ? strength * strength : strength;
+  float radius = mix(u_minRadius,u_radius,curve);
+  if (radius <= 0.0001) { outColor=draw(v_uv,0.0); return; }
 
   const float repeats=40.0;
-  const float blurAmount=0.08;
+  float lod=clamp(log2(max(1.0,radius*0.25)),0.0,u_maxLod);
   vec2 pixelRadius=vec2(radius)/u_sourceSize;
   vec4 blurredImage=vec4(0.0);
   for (int sampleIndex=0;sampleIndex<40;sampleIndex++) {
     float i=float(sampleIndex);
-    // Keep the original demo's angular sequence and paired jitter distribution.
-    float angle=degrees((i/repeats)*360.0);
+    // Golden-angle spiral + Gaussian-weighted radial jitter for smooth diffusion.
+    float angle=i*2.39996323;
     vec2 unitDirection=vec2(cos(angle),sin(angle));
-    vec2 q=unitDirection*(rand(vec2(i,v_uv.x+v_uv.y))+blurAmount);
-    blurredImage+=draw(v_uv+q*pixelRadius)*0.5;
-    q=unitDirection*(rand(vec2(i+2.0,v_uv.x+v_uv.y+24.0))+blurAmount);
-    blurredImage+=draw(v_uv+q*pixelRadius)*0.5;
+    float r1=pow(rand(vec2(i,v_uv.x+v_uv.y)),1.35);
+    blurredImage+=draw(v_uv+unitDirection*r1*pixelRadius,lod)*0.5;
+    float r2=pow(rand(vec2(i+2.0,v_uv.x+v_uv.y+24.0)),1.35);
+    blurredImage+=draw(v_uv+unitDirection*r2*pixelRadius,lod)*0.5;
   }
-  outColor=blurredImage/repeats;
+  vec4 blurred=blurredImage/repeats;
+  outColor=mix(draw(v_uv,0.0),blurred,smoothstep(0.0,2.0,radius));
 }`;
 
 function createShader(gl, type, source) {
@@ -102,14 +108,14 @@ export class ProgressiveBlur {
     this.vertexArray = gl.createVertexArray();
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
     this.uniforms = Object.fromEntries([
       'u_source','u_sourceSize','u_direction','u_radius','u_minRadius',
-      'u_rampStart','u_rampEnd','u_transparentBorder'
+      'u_rampStart','u_rampEnd','u_archLift','u_maxLod','u_transparentBorder'
     ].map(name => [name, gl.getUniformLocation(this.program, name)]));
   }
 
@@ -119,9 +125,9 @@ export class ProgressiveBlur {
     if (!(width > 0 && height > 0) || width > this.maxTextureSize || height > this.maxTextureSize) {
       throw new RangeError('The progressive blur source has unsupported dimensions.');
     }
-    const settings = { radius:24, minRadius:0, rampStart:0, rampEnd:1,
+    const settings = { radius:24, minRadius:0, rampStart:0, rampEnd:1, archLift:0,
       directionX:0, directionY:1, transparentBorder:true, ...options };
-    for (const key of ['radius','minRadius','rampStart','rampEnd','directionX','directionY']) {
+    for (const key of ['radius','minRadius','rampStart','rampEnd','archLift','directionX','directionY']) {
       if (!Number.isFinite(settings[key])) throw new TypeError(`${key} must be finite.`);
     }
     const gl = this.gl;
@@ -139,6 +145,7 @@ export class ProgressiveBlur {
     } else {
       gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,gl.RGBA,gl.UNSIGNED_BYTE,source);
     }
+    gl.generateMipmap(gl.TEXTURE_2D);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0,0,width,height);
     // The clone remains in the input texture, including its offscreen pixels.
@@ -155,6 +162,8 @@ export class ProgressiveBlur {
     gl.uniform1f(uniforms.u_minRadius,Math.min(Math.max(0,settings.minRadius),Math.max(0,settings.radius)));
     gl.uniform1f(uniforms.u_rampStart,settings.rampStart);
     gl.uniform1f(uniforms.u_rampEnd,settings.rampEnd);
+    gl.uniform1f(uniforms.u_archLift,Math.max(0,settings.archLift));
+    gl.uniform1f(uniforms.u_maxLod,Math.max(0,Math.floor(Math.log2(Math.max(width,height)))));
     gl.uniform1i(uniforms.u_transparentBorder,settings.transparentBorder ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES,0,3);
     gl.disable(gl.SCISSOR_TEST);

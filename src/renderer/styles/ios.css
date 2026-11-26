@@ -126,7 +126,7 @@ body[data-ui-style="ios"] :is(.title, .artist) {
 /* Geometry changes once per collapse. The live layers travel with compositor
    transforms, while the ordinary playback spring resumes after they settle. */
 body[data-ui-style="ios"].is-ios-metadata-moving .artwork {
-  transition: none;
+  transition: border-radius 500ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 /* Center both metadata lines beside the cover, with a small gap between
    their line boxes rather than two unrelated viewport positions. */
@@ -447,6 +447,7 @@ body[data-ui-style="ios"].is-tall-animated-art .artwork-blur,
 body[data-ui-style="ios"].is-tall-animated-art.is-lyrics-hidden .artwork-blur {
   display: block;
   top: 0;
+  z-index: 0;
   opacity: 0;
   transition: none;
 }
@@ -480,7 +481,8 @@ body[data-ui-style="ios"]:is(.is-tall-animated-art, .is-wide-animated-art) .artw
   display: block;
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, #0000 23.764%, #00000087 100%);
+  z-index: 1;
+  background: linear-gradient(to bottom, #0000 24%, rgba(0, 0, 0, 0.16) 58%, rgba(0, 0, 0, 0.38) 100%);
 }
 
 /* Frosted pixels already contain the glyph alpha. They cannot expose a

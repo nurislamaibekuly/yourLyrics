@@ -329,10 +329,13 @@ vec4 bg_main(vec2 p) {
 
     if (bg_blurFillEnabled != 0.0) {
       float lod = bg_lodForRadius(bg_blurFillBlurRadius);
-      vec2 d = vec2(0.25*lod);
+      vec2 d = vec2(0.35 * max(lod, 1.0));
 
-      vec3 broad = bg_straight(0.5*(bg_sampleSourceLOD(backdropP+d,lod)+
-                    bg_sampleSourceLOD(backdropP-d,lod)));
+      vec3 broad = bg_straight(0.25 * (
+        bg_sampleSourceLOD(backdropP + vec2(d.x, d.y), lod) +
+        bg_sampleSourceLOD(backdropP + vec2(-d.x, d.y), lod) +
+        bg_sampleSourceLOD(backdropP + vec2(d.x, -d.y), lod) +
+        bg_sampleSourceLOD(backdropP + vec2(-d.x, -d.y), lod)));
       vec3 base = bg_blurFillDarkenOpacity*min(face,broad)
             + bg_blurFillLightenOpacity*max(face,broad)
             + (1.0-bg_blurFillDarkenOpacity-

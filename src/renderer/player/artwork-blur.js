@@ -40,10 +40,11 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
   let revealAnimation = null;
   let morph = null;
   let rememberedTrack = '';
+  let cachedSnapshot = null;
   let presentation = 0;
-  const duration = 650;
-  // Match createIosMetadataTransition's 500ms duration so the collapsing cover
-  // lands in lockstep with the metadata row and menu button.
+  const duration = 500;
+  // Match createIosMetadataTransition's 500ms duration so both expanding and
+  // collapsing covers land in lockstep with the metadata row and menu button.
   const collapseDuration = 500;
   const easing = 'cubic-bezier(0.32, 0.72, 0, 1)';
 
@@ -106,23 +107,33 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
       width: `${start.width}px`, height: `${start.height}px`,
       borderRadius: startRadius, boxShadow: startShadow
     });
-    // Use separate X and Y Bezier progress curves when collapsing so the cover
-    // sweeps along a curved arc instead of a rigid straight diagonal line.
-    if (state.mode === 'closing') {
+    // Interpolate the box center (cx, cy) on separate X/Y Bezier curves so both
+    // collapse and expansion of extended artwork sweep along a true curved arc
+    // instead of having width/height scaling pull the center into a straight line.
+    if (state.mode === 'closing' || state.mode === 'opening') {
       const startR = parseFloat(startRadius) || 0;
       const endR = parseFloat(radius) || 0;
+      const startCx = startLeft + start.width / 2;
+      const startCy = startTop + start.height / 2;
+      const endCx = endLeft + target.width / 2;
+      const endCy = endTop + target.height / 2;
       const steps = 24;
       const keyframes = [];
+      const closing = state.mode === 'closing';
       for (let i = 0; i <= steps; i += 1) {
         const t = i / steps;
-        const pX = sampleCubicBezier(0.2, 0.94, 0.28, 1, t);
-        const pY = sampleCubicBezier(0.38, 0.78, 0.22, 1, t);
+        const pX = closing ? sampleCubicBezier(0.2, 0.94, 0.28, 1, t) : sampleCubicBezier(0.38, 0.78, 0.22, 1, t);
+        const pY = closing ? sampleCubicBezier(0.38, 0.78, 0.22, 1, t) : sampleCubicBezier(0.2, 0.94, 0.28, 1, t);
         const pSize = sampleCubicBezier(0.28, 0.88, 0.24, 1, t);
+        const w = start.width + (target.width - start.width) * pSize;
+        const h = start.height + (target.height - start.height) * pSize;
+        const cx = startCx + (endCx - startCx) * pX;
+        const cy = startCy + (endCy - startCy) * pY;
         keyframes.push({
-          left: `${startLeft + (endLeft - startLeft) * pX}px`,
-          top: `${startTop + (endTop - startTop) * pY}px`,
-          width: `${start.width + (target.width - start.width) * pSize}px`,
-          height: `${start.height + (target.height - start.height) * pSize}px`,
+          left: `${cx - w / 2}px`,
+          top: `${cy - h / 2}px`,
+          width: `${w}px`,
+          height: `${h}px`,
           borderRadius: `${startR + (endR - startR) * pSize}px`,
           boxShadow: i === 0 ? startShadow : shadow
         });
@@ -227,6 +238,15 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
     } else {
       clearMorph();
       state = createMorph(image, image.getBoundingClientRect(), 'opening', key);
+      if (cachedSnapshot && cachedSnapshot.key === key && cachedSnapshot.wide === isWideArt()) {
+        state.tint.style.backgroundImage = cachedSnapshot.shadeImage;
+        state.tint.style.visibility = cachedSnapshot.shadeVisibility;
+        state.snapshot.width = cachedSnapshot.canvas.width;
+        state.snapshot.height = cachedSnapshot.canvas.height;
+        state.snapshot.getContext('2d').drawImage(cachedSnapshot.canvas, 0, 0);
+        state.ready = true;
+        blendArtwork(state, 1, 260, 140);
+      }
     }
     animateGeometry(state, viewportRect(), windowRadius());
     // Hold the growing static cover until a decoded animated frame is ready.
@@ -241,12 +261,25 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
       state = createMorph(image, composition.getBoundingClientRect(), 'closing', rememberedTrack);
       copyArtwork(state);
     }
+    if (rememberedTrack && state.snapshot.width && state.snapshot.height) {
+      const cacheCanvas = document.createElement('canvas');
+      cacheCanvas.width = state.snapshot.width;
+      cacheCanvas.height = state.snapshot.height;
+      cacheCanvas.getContext('2d').drawImage(state.snapshot, 0, 0);
+      cachedSnapshot = {
+        key: rememberedTrack,
+        wide: isWideArt(),
+        canvas: cacheCanvas,
+        shadeImage: state.tint.style.backgroundImage,
+        shadeVisibility: state.tint.style.visibility
+      };
+    }
     state.mode = 'closing';
     const imageStyle = getComputedStyle(image);
     animateGeometry(state, image.getBoundingClientRect(), imageStyle.borderRadius, imageStyle.boxShadow, collapseDuration);
-    // Crossfade across the mid-flight travel so the static cover is already
-    // opaque before the rectangle settles, avoiding a late pop on handoff.
-    blendArtwork(state, 0, Math.round(collapseDuration * 0.72), Math.round(collapseDuration * 0.12));
+    // Fade extended artwork out during the first half of the collapse spring
+    // so the static square cover is opaque as it lands into the header.
+    blendArtwork(state, 0, Math.round(collapseDuration * 0.45), 0);
     Promise.all([state.geometry.finished, state.blend.finished]).then(() => {
       if (morph === state && state.mode === 'closing') clearMorph();
     }).catch(() => {});
@@ -259,7 +292,7 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
       const state = morph;
       state.ready = true;
       copyArtwork(state);
-      blendArtwork(state, 1, 320);
+      blendArtwork(state, 1, 280);
       finishOpening(state);
       return;
     }
@@ -434,17 +467,18 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
         context.drawImage(media, 0, 0, source.width, extensionHeight);
         context.restore();
 
-        // Both artworks pass through this one blur. The ramp begins at the
-        // reflection's Y position and reaches its maximum at the window bottom,
-        // expressed in the complete offscreen composition's coordinate space.
-        // Radius is expressed in source pixels to preserve the reference's visual
-        // strength while bounding GPU work on high-density displays.
-        const rampStart = Math.min(1, artworkHeight / source.height - 0.08);
+        // Portrait blur uses a 2D curved arch mask: sharp across the upper half
+        // of the portrait viewport (~0..48%), curving upward at the left/right
+        // edges (~41%) and feathering smoothly into full blur by ~80% with
+        // quadratic radius growth and Gaussian-weighted sampling.
+        const rampStart = Math.min(1, Math.min(viewportHeight * 0.48, artworkHeight * 0.90) / source.height);
+        const rampEnd = Math.max(rampStart, Math.min(1, (viewportHeight * 0.80) / source.height));
         blur.render(source, {
-          radius: source.width * 300 / 393,
+          radius: source.width * 280 / 393,
           minRadius: 0,
           rampStart,
-          rampEnd: Math.max(rampStart, Math.min(1, viewportHeight / source.height)),
+          rampEnd,
+          archLift: 0.22,
           directionX: 0,
           directionY: 1,
           transparentBorder: false,
@@ -472,7 +506,10 @@ export function createArtworkBlur(video, motion, onPresented = () => {}) {
   }
   schedulePaint();
   return {
-    rememberTrack(key) { rememberedTrack = key; },
+    rememberTrack(key) {
+      if (key !== rememberedTrack) cachedSnapshot = null;
+      rememberedTrack = key;
+    },
     beginExpansion(image, key) {
       beginExpansion(image, key);
       schedulePaint();

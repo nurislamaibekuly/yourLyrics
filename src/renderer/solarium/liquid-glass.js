@@ -1,6 +1,8 @@
 // Must match MAX_RECTANGLES in shaders.js.
 export const MAX_RECTANGLES = 16;
 
+import { regularMenuOptics } from './menu-material.js';
+
 // The Swift struct defaults to `.zero` and relies on every preset filling in
 // the refraction fields. Division by zero in the shader is harmless there but
 // produces NaNs here, so the base values are the physical ones a preset would
@@ -85,6 +87,12 @@ export class LiquidGlass {
         // Keep reflections confined to the light-facing arcs. Broad opposing
         // lobes join into an outline and obscure the refracted backdrop.
         optics: {
+          bg_hasOuterRefraction: 1,
+          bg_outerRefractionAmount: 8,
+          bg_outerRefractionInverseHeight: 1 / 10,
+          bg_refractionThreshold0: -1,
+          bg_refractionThreshold1: 0,
+          bg_refractionOpacity: 0.45,
           hl_keyDirection: [-Math.SQRT1_2, -Math.SQRT1_2],
           hl_fillDirection: [Math.SQRT1_2, Math.SQRT1_2],
           hl_keyHeight: 1.25,
@@ -124,6 +132,22 @@ export class LiquidGlass {
         glareIntensity: 0.1,
         glareEdgeSharpness: -0.1,
         glareDirectionOffset: -Math.PI / 4,
+        optics: {
+          bg_hasOuterRefraction: 1,
+          bg_outerRefractionAmount: 10,
+          bg_outerRefractionInverseHeight: 1 / 10,
+          bg_refractionThreshold0: -1,
+          bg_refractionThreshold1: 0,
+          bg_refractionOpacity: 0.5,
+          hl_diffuseKeyHeight: 6,
+          hl_diffuseFillHeight: 6,
+          hl_diffuseKeySpread: 0.6,
+          hl_diffuseFillSpread: 0.6,
+          hl_diffuseKeyAmount: 5,
+          hl_diffuseFillAmount: 5,
+          hl_hasDiffuse: 1,
+          hl_groupBlend: 1,
+        },
       },
       backgroundTextureSizeCoefficient: 1.1,
       backgroundTextureScaleCoefficient: 0.8,
@@ -132,62 +156,71 @@ export class LiquidGlass {
     });
   }
 
-  // Panels, buttons and effect views. The backdrop is captured at a fifth of
-  // the screen scale and blurred, which is both cheaper and closer to the
-  // frosted material than a sharp capture would be.
+  // Panels, buttons and effect views use the recovered regular optical recipe
+  // (dual-layer refraction, broad blur-fill and soft diffuse rim) so every
+  // regular surface matches the system platter material.
   static regular() {
     return new LiquidGlass({
       uniforms: {
         glassThickness: 12,
-        refractiveIndex: 1.56,
-        dispersionStrength: 7,
-        fresnelDistanceRange: 70,
-        fresnelIntensity: 0,
-        fresnelEdgeSharpness: 0,
-        glareDistanceRange: 22,
-        glareAngleConvergence: 0.25,
-        glareOppositeSideBias: 0.85,
-        glareIntensity: 0.12,
-        glareEdgeSharpness: -0.08,
-        glareDirectionOffset: -Math.PI / 4,
+        dispersionStrength: 0,
+        cornerRoundnessExponent: 4,
       },
       backgroundTextureSizeCoefficient: 1,
       backgroundTextureScaleCoefficient: 0.25,
-      backgroundTextureBlurRadius: 3.8,
-      // Apple-style adaptive dark-mode vibrancy + rich minimal tint so colored
-      // backdrops stay velvety and saturated instead of washing out to chalky grey.
-      backdropTone: isDark => (isDark ? [1.26, 1.03] : [1.0, 1.0]),
-      tintColor: isDark => (isDark
-        ? [0.06, 0.06, 0.09, 0.08]
-        : [0.96, 0.98, 1, 0.44]),
+      backgroundTextureBlurRadius: 0,
+      optics: regularMenuOptics,
+      shadowOverlay: true,
     });
   }
 
   // The `clear` style of UIGlassEffect: the same surface with a thinner
-  // tint, a lighter frost and less dispersion, closest to the system's
-  // ultra-thin material.
+  // tint, crisp capture, dual-lobe refraction and soft specular rim.
   static clear() {
     return new LiquidGlass({
       uniforms: {
-        glassThickness: 6,
-        refractiveIndex: 1.35,
-        dispersionStrength: 3,
+        glassThickness: 8,
+        refractiveIndex: 1.48,
+        dispersionStrength: 4.5,
         fresnelDistanceRange: 70,
         fresnelIntensity: 0,
         fresnelEdgeSharpness: 0,
-        glareDistanceRange: 30,
-        glareAngleConvergence: 0.1,
-        glareOppositeSideBias: 1,
-        glareIntensity: 0.06,
-        glareEdgeSharpness: -0.15,
+        glareDistanceRange: 28,
+        glareAngleConvergence: 0.18,
+        glareOppositeSideBias: 0.9,
+        glareIntensity: 0.22,
+        glareEdgeSharpness: -0.65,
         glareDirectionOffset: -Math.PI / 4,
+        optics: {
+          bg_hasOuterRefraction: 1,
+          bg_outerRefractionAmount: 10,
+          bg_outerRefractionInverseHeight: 1 / 12,
+          bg_refractionThreshold0: -1,
+          bg_refractionThreshold1: 0,
+          bg_refractionOpacity: 0.55,
+          bg_keyFillHighlightHeight: 1.5,
+          bg_keyFillHighlightSpread: 0.2,
+          bg_keyFillHighlightAmount: 0.35,
+          bg_keyFillHighlightEffectOffset: -1.5,
+          bg_keyFillHighlightColorBias: -0.2,
+          bg_wantsHighlightBiasCorrection: 1,
+          hl_diffuseKeyHeight: 6,
+          hl_diffuseFillHeight: 6,
+          hl_diffuseKeySpread: 0.6,
+          hl_diffuseFillSpread: 0.6,
+          hl_diffuseKeyAmount: 6,
+          hl_diffuseFillAmount: 6,
+          hl_hasDiffuse: 1,
+          hl_effectiveGroupGain: 1.15,
+          hl_groupBlend: 1,
+        },
       },
       backgroundTextureSizeCoefficient: 1,
-      backgroundTextureScaleCoefficient: 0.2,
-      backgroundTextureBlurRadius: 0.15,
+      backgroundTextureScaleCoefficient: 0.5,
+      backgroundTextureBlurRadius: 0.6,
       tintColor: isDark => (isDark
-        ? [0, 0.04958364581, 0.09951775161, 0.45]
-        : [0.9023525731, 0.9509486998, 1, 0.45]),
+        ? [0, 0.04958364581, 0.09951775161, 0.36]
+        : [0.9023525731, 0.9509486998, 1, 0.38]),
     });
   }
 
