@@ -124,3 +124,19 @@ test('the new player waits for window resizing before fading in', async () => {
   await pending;
   assert.equal(f.element.inert, false);
 });
+
+
+test('applying a saved layout waits for the native resize before setup can reveal it', async () => {
+  const { createUiStyleSwitcher } = await load();
+  const f = fixture();
+  let resizeFinished;
+  let settled = false;
+  const resize = new Promise(resolve => { resizeFinished = resolve; });
+  const switchStyle = createUiStyleSwitcher(f.element, () => resize, f.motion);
+  const pending = switchStyle('ios', false).then(() => { settled = true; });
+  await flush();
+  assert.equal(settled, false);
+  resizeFinished();
+  await pending;
+  assert.equal(settled, true);
+});

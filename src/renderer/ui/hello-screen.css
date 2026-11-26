@@ -1,0 +1,290 @@
+/* First-launch Liquid Glass Hello onboarding overlay.
+   Only the live backdrop, the Hello Liquid Glass canvas, the "Get Started"
+   button, and the hover window drag strip show while active. */
+
+body.is-hello-active .stage,
+body.is-hello-active .lyrics-pill,
+body.is-hello-active .lyrics-toggle,
+body.is-hello-active .ios-translate-toggle,
+body.is-hello-active .ios-bottom-action,
+body.is-hello-active .ios-airplay-label,
+body.is-hello-active .macos-volume-control,
+body.is-hello-active .lyrics-notice,
+body.is-hello-active .file-drop {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* While Hello is active, #app appears cleanly without the normal player scale-up
+   so the backdrop's 0.4s fade (after 0.8s delay) and the Liquid Glass icon own
+   the opening reveal. */
+body.is-hello-active.is-startup-revealing #app {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+body.is-hello-active .backdrop {
+  opacity: 0;
+}
+
+/* Fallback CSS fade only when WebGL2 is unavailable (otherwise hello-screen.js
+   drives .backdrop opacity and Solarium's backdrop capture from one locked clock). */
+body.is-hello-active.is-hello-fallback-fade .backdrop {
+  animation: hello-backdrop-fade 400ms cubic-bezier(0, 0, 0.42, 1) 800ms both;
+}
+
+@keyframes hello-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hello-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  pointer-events: auto;
+  transition:
+    opacity 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 460ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.hello-screen.is-dismissing {
+  opacity: 0;
+  transform: scale(1.03);
+  pointer-events: none;
+}
+
+.hello-screen__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.hello-screen__path-svg {
+  position: fixed;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hello-screen__fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.hello-screen__fallback-svg {
+  width: min(720px, 78vw);
+  height: auto;
+  filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.28));
+}
+
+.hello-screen__fallback-path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 55;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hello-screen__footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: max(48px, 8vh);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(18px) scale(0.92);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 720ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.hello-screen__footer.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.hello-get-started {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  min-height: 46px;
+  min-width: 168px;
+  padding: 11px 30px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.015em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  cursor: pointer;
+  pointer-events: none;
+}
+
+.hello-screen__footer.is-visible .hello-get-started {
+  pointer-events: auto;
+}
+
+.hello-get-started.is-solarium-glass {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.hello-get-started:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 3px;
+}
+
+.hello-get-started__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hello-get-started__label {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.is-hello-active.is-hello-fallback-fade .backdrop {
+    animation-duration: 200ms;
+    animation-delay: 200ms;
+  }
+
+  .hello-screen,
+  .hello-screen__footer {
+    transition-duration: 200ms;
+  }
+}
+
+/* Setup follows the player: live artwork, SF typography and Solarium platters. */
+.hello-screen.is-setting-up .hello-screen__canvas,
+.hello-screen.is-setting-up .hello-screen__fallback,
+.hello-screen.is-setting-up .hello-screen__footer {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 380ms ease, filter 450ms ease, transform 450ms ease;
+  filter: blur(12px);
+  transform: scale(1.06);
+}
+.hello-setup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: safe center;
+  padding: 38px 24px 28px;
+  overflow: auto;
+  box-sizing: border-box;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  animation: hello-setup-enter 720ms 100ms cubic-bezier(.16,1,.3,1) backwards;
+}
+.hello-setup *, .hello-setup *::before, .hello-setup *::after { box-sizing: border-box; }
+.hello-setup__panel { width: min(440px,100%); }
+.hello-setup__content { min-height: 426px; }
+.hello-setup__symbol { display: flex; justify-content: center; margin-bottom: 18px; }
+.hello-setup__symbol svg { width: 54px; height: 54px; stroke-width: 1.3; }
+.hello-setup__title { margin: 0 0 10px; font-size: 30px; line-height: 1.16; font-weight: 700; letter-spacing: -.025em; text-align: center; text-wrap: balance; outline: none; }
+.hello-setup__description { margin: 0 0 28px; font-size: 15px; line-height: 1.45; color: rgba(255,255,255,.7); text-align: center; text-wrap: balance; }
+.hello-setup__group { position: relative; isolation: isolate; border-radius: 28px; color: #fff; background: rgba(35,35,40,.8); }
+.hello-setup__glass { pointer-events: none; }
+.hello-setup__choices { position: relative; min-width: 0; padding: 8px; border: 0; margin: 0; }
+.hello-setup__option { position: relative; display: flex; align-items: center; gap: 14px; min-height: 62px; padding: 10px 14px; border-radius: 20px; cursor: pointer; transition: background 160ms ease; }
+.hello-setup__option + .hello-setup__option::before { content: ''; position: absolute; left: 54px; right: 14px; top: 0; height: .5px; background: currentColor; opacity: .12; }
+.hello-setup__option:hover { background: rgba(255,255,255,.06); }
+.hello-setup__option:has(input:focus-visible) { outline: 2px solid currentColor; outline-offset: -2px; }
+.hello-setup__option > svg { width: 28px; height: 28px; flex: none; opacity: .85; }
+.hello-setup__option input, .hello-setup__sr-only { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); }
+.hello-setup__option-copy { display: flex; flex: 1; flex-direction: column; gap: 3px; min-width: 0; }
+.hello-setup__option strong { font-size: 16px; font-weight: 500; letter-spacing: -.025em; }
+/* Match the player's secondary-text vibrancy. Use alpha on the glyphs so
+   blending can see the glass, rather than an isolated opacity group. */
+.hello-setup__description,
+.hello-setup__hint,
+.hello-setup__detail { mix-blend-mode: plus-lighter; }
+.hello-setup__detail { font-size: 12px; line-height: 1.35; color: rgba(255,255,255,.5); }
+.hello-setup__check { width: 20px; height: 20px; flex: none; opacity: 0; }
+.hello-setup__check svg { display: block; width: 100%; height: 100%; stroke-width: 2.6; }
+.hello-setup__option:has(input:checked) .hello-setup__check { opacity: 1; }
+.hello-setup__hint { margin: 16px 0 0; font-size: 12px; line-height: 1.4; text-align: center; color: rgba(255,255,255,.5); }
+.hello-setup__navigation { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 30px; }
+.hello-setup button { position: relative; isolation: isolate; display: grid; place-items: center; border: 0; height: 48px; border-radius: 24px; background: rgba(35,35,40,.8); color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.hello-setup button > span, .hello-setup button > svg { position: relative; z-index: 1; }
+.hello-setup button:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+.hello-setup__back { width: 48px; padding: 0; }
+.hello-setup__back > svg { width: 22px; height: 22px; stroke-width: 2.4; }
+.hello-setup__back:disabled { visibility: hidden; }
+.hello-setup__next { min-width: 154px; padding: 0 26px; }
+.hello-setup__progress { position: absolute; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.hello-setup__progress li { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.28); transition: background 220ms; }
+.hello-setup__progress [aria-current] { background: white; }
+.hello-setup[data-renderer="solarium"][data-glass="true"] .hello-setup__group,
+.hello-setup[data-renderer="solarium"][data-glass="true"] button { background: transparent; }
+.hello-setup[data-glass="false"] .hello-setup__glass { visibility: hidden; }
+.hello-setup[data-material-theme="light"] .hello-setup__group,
+.hello-setup[data-material-theme="light"] button { color: #1c1c1e; }
+.hello-setup[data-material-theme="light"][data-glass="false"] .hello-setup__group,
+.hello-setup[data-material-theme="light"][data-glass="false"] button,
+.hello-setup[data-material-theme="light"][data-renderer="fallback"] .hello-setup__group,
+.hello-setup[data-material-theme="light"][data-renderer="fallback"] button { background: rgba(245,245,247,.94); }
+.hello-setup[data-material-theme="light"] .hello-setup__option:hover { background: rgba(0,0,0,.04); }
+.hello-setup[data-material-theme="light"] .hello-setup__detail {
+  color: rgba(28,28,30,.6);
+  mix-blend-mode: multiply;
+}
+@keyframes hello-setup-enter { from { opacity: 0; transform: translateY(30px) scale(.94); filter: blur(12px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@media (max-height: 650px) {
+  .hello-setup { padding-top: 32px; padding-bottom: 22px; }
+  .hello-setup__symbol { margin-bottom: 12px; }
+  .hello-setup__symbol svg { width: 44px; height: 44px; }
+  .hello-setup__description { margin-bottom: 20px; }
+  .hello-setup__content { min-height: 398px; }
+  .hello-setup__navigation { margin-top: 22px; }
+}
+@media (max-width: 480px) {
+  .hello-setup { padding-left: 20px; padding-right: 20px; }
+  .hello-setup__title { font-size: 28px; }
+  .hello-setup__description { font-size: 14px; }
+  .hello-setup__option { gap: 10px; padding-left: 10px; padding-right: 10px; }
+  .hello-setup__detail { font-size: 11px; }
+  .hello-setup__next { min-width: 138px; padding: 0 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hello-setup { animation: none; }
+  .hello-setup__option { transition: none; }
+  .hello-screen.is-setting-up .hello-screen__canvas,
+  .hello-screen.is-setting-up .hello-screen__fallback,
+  .hello-screen.is-setting-up .hello-screen__footer { transition: opacity 150ms; transform: none; filter: none; }
+}

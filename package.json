@@ -1,6 +1,6 @@
 {
   "name": "yourlyrics",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "yourLyrics desktop app",
   "main": "src/main/index.js",
   "scripts": {
@@ -22,6 +22,7 @@
     "test:solarium": "node tests/test-solarium.cjs",
     "test:solarium-optics": "node tests/test-solarium-optics.cjs",
     "test:solarium-materials": "node --test tests/test-solarium-materials.cjs",
+    "test:hello-setup": "node tests/test-hello-setup.cjs && node tests/test-hello-player.cjs",
     "test:ui-style": "node --test tests/test-ui-style.cjs",
     "test:ios": "node --test tests/test-window-style.cjs tests/test-ios-metadata.cjs && node tests/test-ios-layout.cjs && node tests/test-ios-frost.cjs",
     "test:tvos-controls": "node --test tests/test-tvos-controls.cjs",

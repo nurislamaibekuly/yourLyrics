@@ -25,9 +25,10 @@ export function createUiStyleSwitcher(element, apply, motion = window.matchMedia
     generation += 1;
     animation?.cancel();
     animation = null;
-    apply(desired, false);
+    const applied = apply(desired, false);
     element.inert = false;
     element.classList.remove('is-ui-switching');
+    return applied;
   }
 
   motion.addEventListener('change', () => {
@@ -36,7 +37,7 @@ export function createUiStyleSwitcher(element, apply, motion = window.matchMedia
 
   return async (value, animate = true) => {
     desired = normalizeUiStyle(value);
-    if (!animate || motion.matches) { settle(); return; }
+    if (!animate || motion.matches) { await settle(); return; }
     const id = ++generation;
     const style = animation ? getComputedStyle(element) : null;
     const from = style

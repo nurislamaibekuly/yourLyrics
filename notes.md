@@ -1,4 +1,11 @@
-### Changed
-- **Liquid Glass optics & shaders**: Upgraded Solarium `regular` and `clear` glass materials with higher-resolution backdrop captures, 4-tap symmetric blur-fill sampling, dual-lobe refraction, refined specular/diffuse rims, and analytical press-transform backdrop recentering so interactive stretch never distorts the cached backdrop.
-- **Progressive artwork blur**: Upgraded `ProgressiveBlur` to mipmapped golden-angle spiral sampling with Gaussian-weighted radial jitter and edge-arch lift (`u_archLift`) for smoother diffusion on animated covers.
-- **iOS animated artwork transitions**: Synchronized expand and collapse morphs at 500 ms along a center-interpolated curved arc, added snapshot caching for instant re-expansion, smoothed artwork `border-radius` transitions, and refined the animated artwork bottom gradient scrim layering.
+### Added
+- **First-launch setup**: A Liquid Glass Hello animation followed by setup for your preferred interface style, appearance, and Solarium effects.
+- **Interface choices**: Choose macOS, tvOS, iOS, or iPadOS, with Automatic, Light, or Dark appearance and Liquid Glass or Standard controls.
+
+### Improved
+- **Native glass styling**: Setup uses the same Solarium material as the app’s menus, with SF typography, settings-style rows, and blended secondary text.
+- **Smooth transitions**: Animated setup steps and a coordinated blur-and-zoom transition into the player after the selected layout finishes resizing. Reduced motion uses a short dissolve.
+- **Immediate preferences**: Setup choices are saved and applied without restarting, including disabling Solarium.
+
+### Fixed
+- **Setup appearing again**: Completing setup saves a local completion flag so subsequent launches open directly to the player, including development builds. Unfinished setup remains available on the next launch.

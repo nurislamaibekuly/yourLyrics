@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('app', {
   platform: process.platform,
+  isDev: process.argv.includes('--yourlyrics-dev'),
+  isPackaged: process.argv.includes('--yourlyrics-packaged'),
   getHostname: () => ipcRenderer.invoke('app:hostname'),
   getBluetoothDevice: () => ipcRenderer.invoke('app:bluetooth-device'),
   requestVolume: () => ipcRenderer.send('app:request-volume'),

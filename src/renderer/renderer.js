@@ -18,6 +18,8 @@ import { MenuView } from './ui/menuview.js';
 import { SheetView } from './ui/sheetview.js';
 import { alert as baseAlert, confirm as baseConfirm, prompt as basePrompt } from './ui/alertview.js';
 import { buildUpdateCard as baseBuildUpdateCard, presentUpdate as basePresentUpdate } from './ui/updateview.js';
+import { createHelloScreen } from './ui/hello-screen.js';
+import { revealPlayerFromSetup } from './ui/setup-transition.js';
 
 // The title bar is hidden on every platform so the stylesheet can round the
 // window more than the OS mask allows. Windows, Linux and macOS draw macOS-style
@@ -1718,8 +1720,9 @@ function setUiStyle(value, animate = true) {
   const next = normalizeUiStyle(value);
   if (next === uiStyle && animate) return;
   uiStyle = next;
-  void switchUiStyle(next, animate);
+  const applied = switchUiStyle(next, animate);
   persistSettings();
+  return applied;
 }
 
 // A font or weight swap changes text metrics without changing a line box's
@@ -2874,6 +2877,61 @@ async function startBackdrop() {
   await setBackdropArtwork(backdropArtwork);
   syncBackdropPlayback();
   window.addEventListener('beforeunload', () => backdrop?.destroy());
+}
+
+const helloSeenStorageKey = 'yourlyrics:hello-seen';
+let helloScreen = null;
+let deferredUpdateCheck = false;
+
+function shouldShowHelloOnLaunch() {
+  if (window.app?.isDev !== true && window.app?.isPackaged !== true) return false;
+  try {
+    return localStorage.getItem(helloSeenStorageKey) !== '1';
+  } catch {
+    return false;
+  }
+}
+
+if (shouldShowHelloOnLaunch()) {
+  document.body.classList.add('is-hello-active');
+  helloScreen = createHelloScreen({
+    container: document.querySelector('#app') || document.body,
+    backdropCanvas,
+    isBackdropPlaying: () => backdropPlaying,
+    initialSettings: { uiStyle, theme, disableSolarium },
+    onSetupComplete: async settings => {
+      setDisableSolarium(settings.disableSolarium, false, false);
+      solariumDisabledForSession = disableSolarium;
+      // Keep the player covered until the selected window size and controls
+      // are ready. The reveal must start at their final layout.
+      await setUiStyle(settings.uiStyle, false);
+      setTheme(settings.theme);
+      await syncSolariumMetadataControl();
+      persistSettings(true);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    },
+    onDismiss: () => {
+      try {
+        localStorage.setItem(helloSeenStorageKey, '1');
+      } catch {
+        // Storage unavailable; keep session-only dismissal.
+      }
+      helloScreen = null;
+      document.body.classList.remove('is-hello-active', 'is-hello-started');
+      const reveal = revealPlayerFromSetup({ reducedMotion: reducedMotion.matches });
+      requestAnimationFrame(() => {
+        syncSolariumLyricsToggle();
+        syncSolariumMacosVolume();
+      });
+      if (deferredUpdateCheck) {
+        deferredUpdateCheck = false;
+        window.setTimeout(() => {
+          checkForUpdates(false);
+        }, 1200);
+      }
+      return reveal;
+    },
+  });
 }
 
 document.body.hidden = false;
@@ -5445,7 +5503,8 @@ function syncLyricInteraction() {
 }
 
 tvosControls = createTvosControlsAutoHide(document.body, () =>
-  dragging || Boolean(document.querySelector('.sheetview, .menuview, .alertview, .stage.is-ui-switching')) ||
+  dragging || Boolean(helloScreen) ||
+  Boolean(document.querySelector('.sheetview, .menuview, .alertview, .stage.is-ui-switching')) ||
   Boolean(document.activeElement?.matches(':focus-visible') &&
     document.activeElement.closest('.progress, .metadata-menu, .lyrics-toggle')),
   { onIdleChange: syncLyricInteraction }
@@ -5453,7 +5512,8 @@ tvosControls = createTvosControlsAutoHide(document.body, () =>
 window.addEventListener('beforeunload', () => tvosControls.dispose());
 
 iosControls = createTvosControlsAutoHide(document.body, () =>
-  dragging || Boolean(document.querySelector('.sheetview, .menuview, .alertview, .stage.is-ui-switching')) ||
+  dragging || Boolean(helloScreen) ||
+  Boolean(document.querySelector('.sheetview, .menuview, .alertview, .stage.is-ui-switching')) ||
   Boolean(document.activeElement?.matches(':focus-visible') && document.activeElement.closest('button, input, .progress')),
   { style: 'ios', idleClass: 'is-ios-idle', idleMs: 2500,
     // iPadOS keeps its transport visible and its lyric lines interactive in
@@ -5477,10 +5537,20 @@ if (window.app && window.app.nowPlaying) {
 // usable window black, and warm launches need no mandatory one-second hold.
 void (async () => {
   await Promise.race([
-    Promise.allSettled([startupBackdropReady, document.fonts.ready]),
+    Promise.allSettled([
+      startupBackdropReady,
+      document.fonts.ready,
+      ...(helloScreen ? [helloScreen.ready] : []),
+    ]),
     new Promise(resolve => setTimeout(resolve, 1000))
   ]);
   const page = document.querySelector('#app');
+  if (helloScreen) {
+    document.body.classList.remove('is-startup-pending');
+    document.body.classList.add('is-hello-started');
+    helloScreen.start();
+    return;
+  }
   document.body.classList.replace('is-startup-pending', 'is-startup-revealing');
   const finish = event => {
     if (event.target !== page) return;
@@ -5522,6 +5592,10 @@ if (window.app && window.app.updates) {
   });
   // Delayed so the alert never races the initial now-playing and lyrics load.
   window.setTimeout(() => {
+    if (helloScreen) {
+      deferredUpdateCheck = true;
+      return;
+    }
     checkForUpdates(false);
   }, 2500);
 }
